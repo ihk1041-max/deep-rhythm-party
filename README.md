@@ -1,45 +1,23 @@
-# 深海リズムパーティ v3
+# 深海リズムパーティ v4
 
-スマホ/PWA向けのオリジナル短時間リズムゲームです。v2の3ゲーム構成とセーブデータを引き継ぎながら、ゲーム全体を「BGMに合わせて遊ぶ」方式へ拡張しています。
+スマホ/PWA向けのオリジナル短時間リズムゲームです。v3のAudioContext同期エンジンを維持しつつ、初回練習、拍同期の掛け声、曲展開強化、4曲目「深海リミックス」を追加しています。
 
-## v3の主な改善
+## v4の主な改善
 
-- 3ステージすべてにオリジナルBGMを追加
-  - ドラム
-  - ベース
-  - コード
-  - メロディ
-- `AudioContext.currentTime` を基準に、BGM・合図・入力判定を同じ時計で同期
-- 曲中に INTRO / VERSE / CHORUS / FINAL などのセクションを追加
-- 後半は裏拍・0.5拍・1.5拍などの変化パターンを追加
-- カニクラップは「お手本→同じフレーズを返す」コール＆レスポンスを強化
-- フグぷくぷくは合図間隔が途中で変化し、終盤は連続入力を追加
-- BGM音量とタップ音・合図音量を個別設定
-- Android等で利用可能な短い振動フィードバックを追加
-- 推定Audio出力遅延を設定画面に表示
-- 結果画面に平均タイミング誤差を追加
-- v1/v2の設定・スコアをv3へ自動移行
-- Service Workerキャッシュをv3へ更新
+- 初回プレイ時に短い「れんしゅう」→そのまま本番へ移行
+- 設定で初回練習をON/OFF可能
+- `Hey! / Go! / Yeah!` のオリジナル生成ボイスサンプルをAudioContextで拍同期再生
+- 3曲のターゲット数・終盤フレーズを増加
+- 4曲目「深海リミックス」を追加
+  - メンダコ / カニ / フグのリズムを曲中で切り替え
+  - 128 BPM / 72 beat
+- リミックス専用BGM、背景、判定音、キャラクター切替演出
+- v1〜v3の保存データをv4へ自動移行
+- Service Workerに音声サンプルを含め、オフラインPWAを維持
 
-## 音楽実装
+## 開発
 
-外部BGMファイルや既存作品の楽曲は使用していません。Web Audio APIのOscillator/Noiseを使って、オリジナルのリズムトラックをリアルタイムにスケジュールしています。
-
-入力判定、BGM、合図音はすべて同じ `AudioContext.currentTime` を基準にします。
-
-```text
-AudioContext.currentTime
-        |
-        +-- BGM
-        +-- cue
-        +-- hit sound
-        +-- input judge
-        +-- visual beat pulse
-```
-
-## 開発環境
-
-Node.js 22系を推奨します。
+Node.js 22系推奨。
 
 ```bash
 npm install
@@ -47,41 +25,24 @@ npm run typecheck
 npm run dev
 ```
 
-`http://localhost:4173` を開いてください。
+`http://localhost:4173` を開きます。
 
-### ビルド
-
-```bash
-npm run build
-```
-
-成果物は `dist/` に生成されます。
-
-## GitHub Pagesへの更新
-
-既存のv2リポジトリへv3を上書きした後、以下を実行します。
+## GitHub Pages更新
 
 ```bash
 npm install
 npm run typecheck
 npm run build
 git add .
-git commit -m "Update Deep Rhythm Party to v3"
+git commit -m "Update Deep Rhythm Party to v4"
 git push origin main
 ```
 
-`.github/workflows/deploy-pages.yml` により `main` へのpush後にGitHub Pagesへ自動デプロイされます。
-
 ## セーブデータ
 
-v3の保存キーは `deep-rhythm-party:v3` です。
+v4保存キー: `deep-rhythm-party:v4`
 
-初回起動時にv3データがない場合は、次の順で既存データを移行します。
-
-1. `deep-rhythm-party:v2`
-2. `deep-rhythm-party:v1`
-
-v2のマスター音量は、v3のBGM音量・SFX音量へ変換して引き継ぎます。
+既存v3/v2/v1がある場合は初回起動時に自動移行します。
 
 ## リズム判定
 
@@ -90,3 +51,10 @@ v2のマスター音量は、v3のBGM音量・SFX音量へ変換して引き継�
 - HARD: PERFECT ±32ms / GREAT ±68ms / GOOD ±108ms
 
 端末差は設定画面のタイミング補正（-250ms〜+250ms）で調整できます。
+
+
+## v4.0.1 hotfix
+
+- 未解放ステージをタップした際に解放条件を表示
+- PWA更新時に旧JavaScriptが混在しないよう、バージョン別アセットパスを採用
+- script/styleはオンライン時network-first、オフライン時cache fallback

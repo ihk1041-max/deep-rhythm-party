@@ -9,7 +9,7 @@ const byId = (id) => {
         throw new Error(`Missing element #${id}`);
     return element;
 };
-const isGameId = (value) => value === 'mendako-pop' || value === 'crab-clap' || value === 'fugu-puku';
+const isGameId = (value) => value === 'mendako-pop' || value === 'crab-clap' || value === 'fugu-puku' || value === 'deep-remix';
 class App {
     audio = new AudioEngine();
     store = new SaveStore();
@@ -27,6 +27,7 @@ class App {
     comboText = byId('combo-text');
     sectionText = byId('section-text');
     progressBar = byId('progress-bar');
+    selectMessage = byId('select-message');
     constructor() {
         this.bindEvents();
         this.populateSettings();
@@ -39,6 +40,7 @@ class App {
     bindEvents() {
         byId('play-button').addEventListener('click', () => {
             this.refreshStageCards();
+            this.clearSelectMessage();
             this.switchMode('select');
         });
         byId('settings-button').addEventListener('click', () => this.switchMode('settings'));
@@ -47,13 +49,19 @@ class App {
         byId('retry-button').addEventListener('click', () => void this.startGame(this.selectedGameId));
         byId('result-select-button').addEventListener('click', () => {
             this.refreshStageCards();
+            this.clearSelectMessage();
             this.switchMode('select');
         });
         document.querySelectorAll('[data-game-id]').forEach((button) => {
             button.addEventListener('click', () => {
                 const gameId = button.dataset.gameId;
-                if (!isGameId(gameId) || !this.store.isUnlocked(gameId))
+                if (!isGameId(gameId))
                     return;
+                if (!this.store.isUnlocked(gameId)) {
+                    this.showLockedMessage(gameId, button);
+                    return;
+                }
+                this.clearSelectMessage();
                 this.selectedGameId = gameId;
                 void this.startGame(gameId);
             });
@@ -75,6 +83,7 @@ class App {
         const music = byId('music-range');
         const sfx = byId('sfx-range');
         const haptics = byId('haptics-toggle');
+        const autoPractice = byId('practice-toggle');
         difficulty.addEventListener('change', () => {
             this.store.updateSettings({ difficulty: difficulty.value });
         });
@@ -98,6 +107,9 @@ class App {
             if (haptics.checked)
                 this.vibrate(12);
         });
+        autoPractice.addEventListener('change', () => {
+            this.store.updateSettings({ autoPractice: autoPractice.checked });
+        });
         document.addEventListener('visibilitychange', () => {
             if (document.hidden && this.mode === 'game') {
                 this.game?.stop();
@@ -110,6 +122,11 @@ class App {
     async startGame(gameId) {
         if (!this.store.isUnlocked(gameId))
             return;
+        const firstPlay = this.store.getRecord(gameId).plays === 0;
+        const shouldPractice = this.store.settings.autoPractice && firstPlay && gameId !== 'deep-remix';
+        await this.startSession(gameId, shouldPractice);
+    }
+    async startSession(gameId, practice) {
         try {
             await this.audio.unlock();
             const settings = this.store.settings;
@@ -118,26 +135,32 @@ class App {
             this.audio.setVolumes(settings.musicVolume, settings.sfxVolume);
             byId('latency-info').textContent = `推定Audio出力遅延: 約${this.audio.getEstimatedOutputLatencyMs()} ms`;
             this.game?.stop();
-            this.statusText.textContent = '4カウントのあと、音楽にのろう！';
-            this.comboText.textContent = 'COMBO 0';
-            this.sectionText.textContent = 'COUNT IN';
+            this.statusText.textContent = practice ? 'れんしゅう：合図のあとにまねしてタップ！' : '4カウントのあと、音楽にのろう！';
+            this.comboText.textContent = '';
+            this.sectionText.textContent = practice ? 'PRACTICE' : 'COUNT IN';
             this.progressBar.style.transform = 'scaleX(0)';
-            byId('game-stage-label').textContent = `STAGE ${String(definition.stage).padStart(2, '0')} · ${definition.bpm} BPM`;
-            byId('game-title').textContent = definition.title;
-            byId('game-instruction').textContent = definition.instruction;
+            byId('game-stage-label').textContent = `${practice ? 'PRACTICE' : `STAGE ${String(definition.stage).padStart(2, '0')}`} · ${definition.bpm} BPM`;
+            byId('game-title').textContent = practice ? `${definition.title} れんしゅう` : definition.title;
+            byId('game-instruction').textContent = practice ? 'まず短いフレーズでタイミングをつかもう' : definition.instruction;
             this.switchMode('game');
             this.game = new RhythmGame({
-                audio: this.audio,
-                definition,
-                difficulty: settings.difficulty,
-                audioOffsetMs: settings.audioOffsetMs,
+                audio: this.audio, definition, difficulty: settings.difficulty, audioOffsetMs: settings.audioOffsetMs, practice,
                 onHud: (combo, progress, sectionLabel) => {
                     this.comboText.textContent = combo >= 2 ? `COMBO ${combo}` : '';
-                    this.sectionText.textContent = sectionLabel;
+                    this.sectionText.textContent = practice ? 'PRACTICE' : sectionLabel;
                     this.progressBar.style.transform = `scaleX(${Math.min(1, Math.max(0, progress))})`;
                 },
                 onJudge: (judge, deltaMs) => this.handleJudge(judge, deltaMs),
-                onFinish: (result) => this.finishGame(result)
+                onFinish: (result) => {
+                    if (practice) {
+                        this.game = null;
+                        this.statusText.textContent = 'れんしゅうOK！ 本番スタート！';
+                        window.setTimeout(() => { void this.startSession(gameId, false); }, 700);
+                    }
+                    else {
+                        this.finishGame(result);
+                    }
+                }
             });
             this.game.start();
         }
@@ -219,18 +242,20 @@ class App {
         const music = byId('music-range');
         const sfx = byId('sfx-range');
         const haptics = byId('haptics-toggle');
+        const autoPractice = byId('practice-toggle');
         difficulty.value = settings.difficulty;
         offset.value = String(settings.audioOffsetMs);
         music.value = String(Math.round(settings.musicVolume * 100));
         sfx.value = String(Math.round(settings.sfxVolume * 100));
         haptics.checked = settings.haptics;
+        autoPractice.checked = settings.autoPractice;
         byId('offset-value').textContent = `${settings.audioOffsetMs > 0 ? '+' : ''}${settings.audioOffsetMs} ms`;
         byId('music-value').textContent = `${Math.round(settings.musicVolume * 100)}%`;
         byId('sfx-value').textContent = `${Math.round(settings.sfxVolume * 100)}%`;
     }
     refreshSummary() {
         const save = this.store.snapshot;
-        byId('total-stars').textContent = `${this.store.totalStars} / 9`;
+        byId('total-stars').textContent = `${this.store.totalStars} / 12`;
         byId('total-plays').textContent = String(save.totalPlays);
     }
     refreshStageCards() {
@@ -241,7 +266,8 @@ class App {
             const record = this.store.getRecord(gameId);
             const unlocked = this.store.isUnlocked(gameId);
             const definition = getGameDefinition(gameId);
-            card.disabled = !unlocked;
+            card.disabled = false;
+            card.setAttribute('aria-disabled', String(!unlocked));
             card.classList.toggle('locked', !unlocked);
             const score = card.querySelector('[data-score]');
             const stars = card.querySelector('[data-stars]');
@@ -256,6 +282,24 @@ class App {
             if (bpm)
                 bpm.textContent = `${definition.bpm} BPM`;
         }
+    }
+    showLockedMessage(gameId, card) {
+        const index = GAME_ORDER.indexOf(gameId);
+        const previousId = index > 0 ? GAME_ORDER[index - 1] : undefined;
+        const title = getGameDefinition(gameId).title;
+        const requirement = previousId
+            ? `${getGameDefinition(previousId).title}を1回遊ぶと解放されます。`
+            : 'まだ解放されていません。';
+        this.selectMessage.textContent = `${title}：${requirement}`;
+        this.selectMessage.hidden = false;
+        card.classList.remove('locked-bump');
+        void card.offsetWidth;
+        card.classList.add('locked-bump');
+        window.setTimeout(() => card.classList.remove('locked-bump'), 420);
+    }
+    clearSelectMessage() {
+        this.selectMessage.hidden = true;
+        this.selectMessage.textContent = '';
     }
     switchMode(mode) {
         this.mode = mode;
@@ -279,7 +323,8 @@ class App {
             combo: 0,
             hitPulse: this.mode === 'result' ? 0.08 : 0,
             missPulse: 0,
-            musicPulse: 0
+            musicPulse: 0,
+            practice: false
         };
         this.renderer.render(state, timeMs);
         requestAnimationFrame(this.loop);

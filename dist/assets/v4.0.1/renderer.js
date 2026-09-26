@@ -61,7 +61,9 @@ export class GameRenderer {
             ? ['#071c2f', '#0a4254', '#102537']
             : gameId === 'fugu-puku'
                 ? ['#061d31', '#0b4a56', '#0c2637']
-                : ['#05162f', '#08375a', '#071325'];
+                : gameId === 'deep-remix'
+                    ? ['#07152d', '#17345b', '#24163d']
+                    : ['#05162f', '#08375a', '#071325'];
         const gradient = ctx.createLinearGradient(0, 0, 0, this.height);
         gradient.addColorStop(0, palette[0]);
         gradient.addColorStop(0.48, palette[1]);
@@ -70,7 +72,7 @@ export class GameRenderer {
         ctx.fillRect(-10, 0, this.width + 20, this.height);
         if (musicPulse > 0) {
             const glow = ctx.createRadialGradient(this.width / 2, this.height * 0.48, 10, this.width / 2, this.height * 0.48, Math.max(this.width, this.height) * 0.62);
-            const pulseColor = gameId === 'crab-clap' ? '255, 143, 115' : gameId === 'fugu-puku' ? '222, 239, 126' : '255, 137, 190';
+            const pulseColor = gameId === 'crab-clap' ? '255, 143, 115' : gameId === 'fugu-puku' ? '222, 239, 126' : gameId === 'deep-remix' ? '124, 225, 255' : '255, 137, 190';
             glow.addColorStop(0, `rgba(${pulseColor}, ${0.075 * musicPulse})`);
             glow.addColorStop(1, `rgba(${pulseColor}, 0)`);
             ctx.fillStyle = glow;
@@ -81,7 +83,7 @@ export class GameRenderer {
             const x = ((i * 173 + timeMs * 0.008) % (this.width + 220)) - 110;
             ctx.beginPath();
             ctx.ellipse(x, this.height * 0.2, 22, this.height * 0.85, -0.3, 0, Math.PI * 2);
-            ctx.fillStyle = gameId === 'fugu-puku' ? '#b8ffcc' : '#6be4ff';
+            ctx.fillStyle = gameId === 'fugu-puku' ? '#b8ffcc' : gameId === 'deep-remix' ? '#d7a7ff' : '#6be4ff';
             ctx.fill();
         }
         ctx.globalAlpha = 1;
@@ -119,6 +121,16 @@ export class GameRenderer {
         }
     }
     drawCharacter(gameId, x, y, scale, timeMs, hitPulse, missPulse, cuePulse) {
+        if (gameId === 'deep-remix') {
+            const phase = Math.floor(timeMs / 900) % 3;
+            if (phase === 0)
+                this.drawMendako(x, y + 5, scale * 0.92, timeMs, hitPulse, missPulse);
+            else if (phase === 1)
+                this.drawCrab(x, y + 34, scale * 0.88, timeMs, hitPulse, missPulse, cuePulse);
+            else
+                this.drawFugu(x, y + 4, scale * 0.9, timeMs, hitPulse, missPulse, cuePulse);
+            return;
+        }
         if (gameId === 'crab-clap') {
             this.drawCrab(x, y + 28, scale, timeMs, hitPulse, missPulse, cuePulse);
             return;
@@ -366,7 +378,7 @@ export class GameRenderer {
             const alpha = 0.24 + progress * 0.76;
             ctx.save();
             ctx.globalAlpha = alpha;
-            ctx.strokeStyle = gameId === 'fugu-puku' ? '#e9f79b' : gameId === 'crab-clap' ? '#ffd0ae' : '#fff0a8';
+            ctx.strokeStyle = gameId === 'fugu-puku' ? '#e9f79b' : gameId === 'crab-clap' ? '#ffd0ae' : gameId === 'deep-remix' ? '#a6f1ff' : '#fff0a8';
             ctx.lineWidth = 5;
             ctx.beginPath();
             ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
@@ -414,7 +426,7 @@ export class GameRenderer {
         ctx.font = '900 19px system-ui, sans-serif';
         ctx.textAlign = 'center';
         ctx.fillStyle = '#dffbff';
-        const label = gameId === 'crab-clap' ? 'おてほん ♪' : gameId === 'fugu-puku' ? 'ぷく ♪' : 'きいて ♪';
+        const label = gameId === 'crab-clap' ? 'おてほん ♪' : gameId === 'fugu-puku' ? 'ぷく ♪' : gameId === 'deep-remix' ? 'SWITCH! ♪' : 'きいて ♪';
         ctx.fillText(label, this.width / 2, this.height * 0.34);
         ctx.restore();
     }
@@ -425,7 +437,7 @@ export class GameRenderer {
         return best < 0.18 ? 1 - best / 0.18 : 0;
     }
     spawnParticles(timeMs, gameId) {
-        const hue = gameId === 'crab-clap' ? 18 : gameId === 'fugu-puku' ? 72 : 328;
+        const hue = gameId === 'crab-clap' ? 18 : gameId === 'fugu-puku' ? 72 : gameId === 'deep-remix' ? 190 : 328;
         for (let i = 0; i < 18; i += 1) {
             const angle = (Math.PI * 2 * i) / 18 + Math.random() * 0.18;
             const speed = 0.045 + Math.random() * 0.08;

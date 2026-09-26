@@ -1,18 +1,21 @@
-const CACHE_NAME = 'deep-rhythm-party-v3.0.0';
+const CACHE_NAME = 'deep-rhythm-party-v4.0.1';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css',
-  './assets/main.js',
-  './assets/audio.js',
-  './assets/games.js',
-  './assets/renderer.js',
-  './assets/rhythm.js',
-  './assets/settings.js',
-  './assets/types.js',
+  './styles.css?v=4.0.1',
+  './assets/v4.0.1/main.js',
+  './assets/v4.0.1/audio.js',
+  './assets/v4.0.1/games.js',
+  './assets/v4.0.1/renderer.js',
+  './assets/v4.0.1/rhythm.js',
+  './assets/v4.0.1/settings.js',
+  './assets/v4.0.1/types.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
-  './icons/icon-512.png'
+  './icons/icon-512.png',
+  './audio/hey.wav',
+  './audio/go.wav',
+  './audio/yeah.wav'
 ];
 
 self.addEventListener('install', (event) => {
@@ -44,6 +47,23 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(() => caches.match('./index.html'))
+    );
+    return;
+  }
+
+  const networkFirst = event.request.destination === 'script' || event.request.destination === 'style';
+
+  if (networkFirst) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request))
     );
     return;
   }

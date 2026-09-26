@@ -1,4 +1,4 @@
-import type { GameId, Judge } from './types.js';
+import type { GameId, Judge, VoiceSample } from './types.js';
 
 type BusKind = 'music' | 'sfx';
 
@@ -14,6 +14,8 @@ export class AudioEngine {
   private active = new Set<AudioScheduledSourceNode>();
   private musicVolume = 0.72;
   private sfxVolume = 0.9;
+  private voiceBuffers = new Map<VoiceSample, AudioBuffer>();
+  private voiceLoad: Promise<void> | null = null;
 
   async unlock(): Promise<void> {
     if (!this.context) {
@@ -32,6 +34,8 @@ export class AudioEngine {
     if (this.context.state !== 'running') {
       await this.context.resume();
     }
+    if (!this.voiceLoad) this.voiceLoad = this.loadVoiceSamples();
+    await this.voiceLoad;
   }
 
   now(): number {
@@ -64,12 +68,21 @@ export class AudioEngine {
       this.scheduleMendakoSong(startTime, spb, endBeat);
     } else if (gameId === 'crab-clap') {
       this.scheduleCrabSong(startTime, spb, endBeat);
-    } else {
+    } else if (gameId === 'fugu-puku') {
       this.scheduleFuguSong(startTime, spb, endBeat);
+    } else {
+      this.scheduleRemixSong(startTime, spb, endBeat);
     }
   }
 
   scheduleCue(gameId: GameId, time: number, cueIndex: number): void {
+    if (gameId === 'deep-remix') {
+      const mode = cueIndex % 3;
+      if (mode === 0) this.scheduleCue('mendako-pop', time, cueIndex);
+      else if (mode === 1) this.scheduleCue('crab-clap', time, cueIndex);
+      else this.scheduleCue('fugu-puku', time, cueIndex);
+      return;
+    }
     if (gameId === 'crab-clap') {
       this.clap('sfx', time, 0.07, 0.115);
       const notes = [72, 74, 76, 79];
@@ -102,6 +115,11 @@ export class AudioEngine {
     }
 
     const quality = judge === 'PERFECT' ? 1 : judge === 'GREAT' ? 0.82 : 0.64;
+    if (gameId === 'deep-remix') {
+      const phase = Math.floor(beat / 12) % 3;
+      this.playHit(judge, phase === 0 ? 'mendako-pop' : phase === 1 ? 'crab-clap' : 'fugu-puku', beat);
+      return;
+    }
     if (gameId === 'crab-clap') {
       this.clap('sfx', now, 0.08, 0.145 * quality);
       this.tone('sfx', now, midiToHz(72 + (Math.round(beat) % 5)), 0.065, 0.045 * quality, 'square');
@@ -120,6 +138,38 @@ export class AudioEngine {
     const note = scale[Math.abs(Math.round(beat * 2)) % scale.length] ?? 72;
     this.tone('sfx', now, midiToHz(note), 0.10, 0.10 * quality, 'sine');
     this.tone('sfx', now + 0.03, midiToHz(note + 12), 0.07, 0.05 * quality, 'triangle');
+  }
+
+
+  scheduleVoice(sample: VoiceSample, time: number, gainValue = 0.68): void {
+    if (!this.context) return;
+    const buffer = this.voiceBuffers.get(sample);
+    const bus = this.getBus('sfx');
+    if (!buffer || !bus) return;
+    const source = this.context.createBufferSource();
+    const gain = this.context.createGain();
+    source.buffer = buffer;
+    gain.gain.value = gainValue;
+    source.connect(gain);
+    gain.connect(bus);
+    this.registerSource(source);
+    source.start(time);
+  }
+
+  private async loadVoiceSamples(): Promise<void> {
+    if (!this.context) return;
+    const samples: VoiceSample[] = ['hey', 'go', 'yeah'];
+    await Promise.all(samples.map(async (name) => {
+      try {
+        const response = await fetch(`./audio/${name}.wav`);
+        if (!response.ok) return;
+        const data = await response.arrayBuffer();
+        const decoded = await this.context!.decodeAudioData(data);
+        this.voiceBuffers.set(name, decoded);
+      } catch (error) {
+        console.warn(`Voice sample load failed: ${name}`, error);
+      }
+    }));
   }
 
   stopAll(): void {
@@ -226,6 +276,25 @@ export class AudioEngine {
       const hatLevel = (step % 2 === 0 ? 0.025 : 0.017) * hatGain;
       this.hat(start + beat * spb, hatLevel, step % 4 === 3);
     }
+  }
+
+
+  private scheduleRemixSong(start: number, spb: number, endBeat: number): void {
+    const roots = [48, 38, 43, 45, 41, 50];
+    this.scheduleGroove(start, spb, endBeat, 0.92, 0.72, 0.42, 'deep-remix');
+    for (let beat = 4, bar = 0; beat < endBeat; beat += 4, bar += 1) {
+      const root = roots[bar % roots.length] ?? 48;
+      const phase = Math.floor(beat / 12) % 3;
+      this.padChord(start + beat * spb, root, phase === 1 ? 'minor' : 'major', spb * 3.55, 0.03);
+      this.bass(start + beat * spb, root, spb * 0.48, 0.072);
+      this.bass(start + (beat + 2) * spb, root + 7, spb * 0.4, 0.055);
+      const pattern = phase === 0 ? [0, 1, 2.5, 3] : phase === 1 ? [0.5, 1.5, 2, 3.5] : [0, 1.5, 2.5, 3.5];
+      for (let i = 0; i < pattern.length; i += 1) {
+        const off = pattern[i] ?? 0;
+        this.pluck(start + (beat + off) * spb, root + 24 + ((bar + i * 2) % 7), spb * 0.22, 0.032, phase === 1 ? 'square' : 'triangle');
+      }
+    }
+    this.finale(start + endBeat * spb, 60, 0.11);
   }
 
   private finale(time: number, rootMidi: number, gain: number): void {
