@@ -1,5 +1,5 @@
 import { AudioEngine } from './audio.js';
-import { GAME_ORDER, getGameDefinition } from './games.js';
+import { GAME_ORDER, getGameDefinition, getSectionLabel } from './games.js';
 import { GameRenderer } from './renderer.js';
 import { RhythmGame } from './rhythm.js';
 import { SaveStore } from './settings.js';
@@ -22,7 +22,6 @@ class App {
   private game: RhythmGame | null = null;
   private mode: AppMode = 'title';
   private selectedGameId: GameId = 'mendako-pop';
-  private animationFrame = 0;
 
   private readonly titlePanel = byId<HTMLElement>('title-panel');
   private readonly selectPanel = byId<HTMLElement>('select-panel');
@@ -31,6 +30,7 @@ class App {
   private readonly settingsPanel = byId<HTMLElement>('settings-panel');
   private readonly statusText = byId<HTMLElement>('status-text');
   private readonly comboText = byId<HTMLElement>('combo-text');
+  private readonly sectionText = byId<HTMLElement>('section-text');
   private readonly progressBar = byId<HTMLElement>('progress-bar');
 
   constructor() {
@@ -39,7 +39,7 @@ class App {
     this.refreshSummary();
     this.refreshStageCards();
     this.switchMode('title');
-    this.loop(performance.now());
+    requestAnimationFrame(this.loop);
     this.registerServiceWorker();
   }
 
@@ -81,7 +81,9 @@ class App {
 
     const difficulty = byId<HTMLSelectElement>('difficulty-select');
     const offset = byId<HTMLInputElement>('offset-range');
-    const volume = byId<HTMLInputElement>('volume-range');
+    const music = byId<HTMLInputElement>('music-range');
+    const sfx = byId<HTMLInputElement>('sfx-range');
+    const haptics = byId<HTMLInputElement>('haptics-toggle');
 
     difficulty.addEventListener('change', () => {
       this.store.updateSettings({ difficulty: difficulty.value as Difficulty });
@@ -93,11 +95,20 @@ class App {
       this.store.updateSettings({ audioOffsetMs: value });
     });
 
-    volume.addEventListener('input', () => {
-      const value = Number(volume.value) / 100;
-      byId<HTMLElement>('volume-value').textContent = `${Math.round(value * 100)}%`;
-      this.store.updateSettings({ masterVolume: value });
-      this.audio.setVolume(value);
+    const updateVolumes = (): void => {
+      const musicVolume = Number(music.value) / 100;
+      const sfxVolume = Number(sfx.value) / 100;
+      byId<HTMLElement>('music-value').textContent = `${Math.round(musicVolume * 100)}%`;
+      byId<HTMLElement>('sfx-value').textContent = `${Math.round(sfxVolume * 100)}%`;
+      this.store.updateSettings({ musicVolume, sfxVolume });
+      this.audio.setVolumes(musicVolume, sfxVolume);
+    };
+    music.addEventListener('input', updateVolumes);
+    sfx.addEventListener('input', updateVolumes);
+
+    haptics.addEventListener('change', () => {
+      this.store.updateSettings({ haptics: haptics.checked });
+      if (haptics.checked) this.vibrate(12);
     });
 
     document.addEventListener('visibilitychange', () => {
@@ -118,13 +129,15 @@ class App {
       const settings = this.store.settings;
       const definition = getGameDefinition(gameId);
       this.selectedGameId = gameId;
-      this.audio.setVolume(settings.masterVolume);
+      this.audio.setVolumes(settings.musicVolume, settings.sfxVolume);
+      byId<HTMLElement>('latency-info').textContent = `推定Audio出力遅延: 約${this.audio.getEstimatedOutputLatencyMs()} ms`;
 
       this.game?.stop();
-      this.statusText.textContent = 'リズムに合わせてタップ！';
+      this.statusText.textContent = '4カウントのあと、音楽にのろう！';
       this.comboText.textContent = 'COMBO 0';
+      this.sectionText.textContent = 'COUNT IN';
       this.progressBar.style.transform = 'scaleX(0)';
-      byId<HTMLElement>('game-stage-label').textContent = `STAGE ${String(definition.stage).padStart(2, '0')}`;
+      byId<HTMLElement>('game-stage-label').textContent = `STAGE ${String(definition.stage).padStart(2, '0')} · ${definition.bpm} BPM`;
       byId<HTMLElement>('game-title').textContent = definition.title;
       byId<HTMLElement>('game-instruction').textContent = definition.instruction;
       this.switchMode('game');
@@ -134,8 +147,9 @@ class App {
         definition,
         difficulty: settings.difficulty,
         audioOffsetMs: settings.audioOffsetMs,
-        onHud: (combo, progress) => {
-          this.comboText.textContent = `COMBO ${combo}`;
+        onHud: (combo, progress, sectionLabel) => {
+          this.comboText.textContent = combo >= 2 ? `COMBO ${combo}` : '';
+          this.sectionText.textContent = sectionLabel;
           this.progressBar.style.transform = `scaleX(${Math.min(1, Math.max(0, progress))})`;
         },
         onJudge: (judge, deltaMs) => this.handleJudge(judge, deltaMs),
@@ -150,13 +164,29 @@ class App {
   }
 
   private handleJudge(judge: Judge, deltaMs?: number): void {
+    const settings = this.store.settings;
+    if (settings.haptics) {
+      this.vibrate(judge === 'MISS' ? 22 : judge === 'PERFECT' ? 12 : 8);
+    }
+
     if (judge === 'MISS') {
       this.statusText.textContent = 'MISS';
       return;
     }
 
-    const signed = deltaMs === undefined ? '' : ` ${deltaMs > 0 ? '+' : ''}${deltaMs}ms`;
-    this.statusText.textContent = `${judge}${signed}`;
+    if (judge === 'PERFECT') {
+      this.statusText.textContent = 'PERFECT!';
+      return;
+    }
+
+    const timing = deltaMs === undefined
+      ? ''
+      : deltaMs < -12
+        ? ' · すこし はやい'
+        : deltaMs > 12
+          ? ' · すこし おそい'
+          : '';
+    this.statusText.textContent = `${judge}${timing}`;
   }
 
   private finishGame(result: GameResult): void {
@@ -165,7 +195,8 @@ class App {
     this.refreshSummary();
     this.refreshStageCards();
     this.game = null;
-    window.setTimeout(() => this.switchMode('result'), 220);
+    if (this.store.settings.haptics) this.vibrate(result.score >= 90 ? [18, 40, 18] : 14);
+    window.setTimeout(() => this.switchMode('result'), 260);
   }
 
   private renderResult(result: GameResult, newHighScore: boolean, unlockedGameId: GameId | null): void {
@@ -178,6 +209,9 @@ class App {
     byId<HTMLElement>('result-good').textContent = String(result.counts.GOOD);
     byId<HTMLElement>('result-miss').textContent = String(result.counts.MISS);
     byId<HTMLElement>('result-combo').textContent = String(result.maxCombo);
+    byId<HTMLElement>('result-timing').textContent = result.averageAbsOffsetMs > 0
+      ? `${result.averageAbsOffsetMs} ms`
+      : '—';
 
     const badge = byId<HTMLElement>('result-badge');
     if (unlockedGameId) {
@@ -191,12 +225,12 @@ class App {
     }
 
     const message = result.score >= 90
-      ? 'すごい！ノリノリ！'
-      : result.score >= 65
-        ? 'いいリズム！もう一回！'
-        : result.score >= 45
-          ? 'いい感じ！あと少し！'
-          : 'リズムを覚えて再挑戦！';
+      ? '曲とひとつになった！最高のリズム！'
+      : result.score >= 68
+        ? 'いいグルーヴ！後半もかなり合ってる！'
+        : result.score >= 48
+          ? '曲を聴いて、合図の続きを感じてみよう！'
+          : 'まずはドラムの拍に合わせてみよう！';
     byId<HTMLElement>('result-message').textContent = message;
   }
 
@@ -204,13 +238,18 @@ class App {
     const settings = this.store.settings;
     const difficulty = byId<HTMLSelectElement>('difficulty-select');
     const offset = byId<HTMLInputElement>('offset-range');
-    const volume = byId<HTMLInputElement>('volume-range');
+    const music = byId<HTMLInputElement>('music-range');
+    const sfx = byId<HTMLInputElement>('sfx-range');
+    const haptics = byId<HTMLInputElement>('haptics-toggle');
 
     difficulty.value = settings.difficulty;
     offset.value = String(settings.audioOffsetMs);
-    volume.value = String(Math.round(settings.masterVolume * 100));
+    music.value = String(Math.round(settings.musicVolume * 100));
+    sfx.value = String(Math.round(settings.sfxVolume * 100));
+    haptics.checked = settings.haptics;
     byId<HTMLElement>('offset-value').textContent = `${settings.audioOffsetMs > 0 ? '+' : ''}${settings.audioOffsetMs} ms`;
-    byId<HTMLElement>('volume-value').textContent = `${Math.round(settings.masterVolume * 100)}%`;
+    byId<HTMLElement>('music-value').textContent = `${Math.round(settings.musicVolume * 100)}%`;
+    byId<HTMLElement>('sfx-value').textContent = `${Math.round(settings.sfxVolume * 100)}%`;
   }
 
   private refreshSummary(): void {
@@ -225,15 +264,18 @@ class App {
       if (!card) continue;
       const record = this.store.getRecord(gameId);
       const unlocked = this.store.isUnlocked(gameId);
+      const definition = getGameDefinition(gameId);
       card.disabled = !unlocked;
       card.classList.toggle('locked', !unlocked);
 
       const score = card.querySelector<HTMLElement>('[data-score]');
       const stars = card.querySelector<HTMLElement>('[data-stars]');
       const lock = card.querySelector<HTMLElement>('[data-lock]');
+      const bpm = card.querySelector<HTMLElement>('[data-bpm]');
       if (score) score.textContent = unlocked ? `BEST ${record.highScore}` : 'LOCKED';
       if (stars) stars.textContent = unlocked ? '★'.repeat(record.bestStars) + '☆'.repeat(3 - record.bestStars) : '🔒';
       if (lock) lock.hidden = unlocked;
+      if (bpm) bpm.textContent = `${definition.bpm} BPM`;
     }
   }
 
@@ -255,14 +297,20 @@ class App {
       beat: 0,
       targets: [],
       cueBeats: definition.cueBeats,
+      sectionLabel: getSectionLabel(definition, 0),
       lastJudgeAgeMs: Number.POSITIVE_INFINITY,
       combo: 0,
       hitPulse: this.mode === 'result' ? 0.08 : 0,
-      missPulse: 0
+      missPulse: 0,
+      musicPulse: 0
     };
     this.renderer.render(state, timeMs);
-    this.animationFrame = requestAnimationFrame(this.loop);
+    requestAnimationFrame(this.loop);
   };
+
+  private vibrate(pattern: number | number[]): void {
+    if ('vibrate' in navigator) navigator.vibrate(pattern);
+  }
 
   private registerServiceWorker(): void {
     if (!('serviceWorker' in navigator)) return;

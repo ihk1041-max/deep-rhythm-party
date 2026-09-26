@@ -1,4 +1,4 @@
-const CACHE_NAME = 'deep-rhythm-party-v2.0.0';
+const CACHE_NAME = 'deep-rhythm-party-v3.0.0';
 const APP_SHELL = [
   './',
   './index.html',
@@ -9,6 +9,7 @@ const APP_SHELL = [
   './assets/renderer.js',
   './assets/rhythm.js',
   './assets/settings.js',
+  './assets/types.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png'

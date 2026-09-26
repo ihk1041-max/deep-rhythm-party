@@ -1,10 +1,13 @@
 import { GAME_ORDER } from './games.js';
-const STORAGE_KEY = 'deep-rhythm-party:v2';
-const LEGACY_STORAGE_KEY = 'deep-rhythm-party:v1';
+const STORAGE_KEY = 'deep-rhythm-party:v3';
+const V2_STORAGE_KEY = 'deep-rhythm-party:v2';
+const V1_STORAGE_KEY = 'deep-rhythm-party:v1';
 const DEFAULT_SETTINGS = {
     difficulty: 'easy',
     audioOffsetMs: 0,
-    masterVolume: 0.8
+    musicVolume: 0.72,
+    sfxVolume: 0.9,
+    haptics: true
 };
 const emptyRecord = () => ({
     highScore: 0,
@@ -13,7 +16,7 @@ const emptyRecord = () => ({
     plays: 0
 });
 const DEFAULT_SAVE = {
-    version: 2,
+    version: 3,
     settings: { ...DEFAULT_SETTINGS },
     games: {
         'mendako-pop': emptyRecord(),
@@ -32,7 +35,8 @@ const asStars = (value) => {
     const numeric = Math.round(asNonNegative(value));
     return Math.min(3, numeric);
 };
-const starsFromScore = (score) => score >= 90 ? 3 : score >= 65 ? 2 : score >= 45 ? 1 : 0;
+const starsFromScore = (score) => score >= 90 ? 3 : score >= 68 ? 2 : score >= 48 ? 1 : 0;
+const asBoolean = (value, fallback) => typeof value === 'boolean' ? value : fallback;
 export class SaveStore {
     data;
     constructor() {
@@ -62,8 +66,10 @@ export class SaveStore {
         const current = this.data.settings;
         this.data.settings = {
             difficulty: isDifficulty(next.difficulty) ? next.difficulty : current.difficulty,
-            audioOffsetMs: clamp(Number.isFinite(next.audioOffsetMs) ? Number(next.audioOffsetMs) : current.audioOffsetMs, -200, 200),
-            masterVolume: clamp(Number.isFinite(next.masterVolume) ? Number(next.masterVolume) : current.masterVolume, 0, 1)
+            audioOffsetMs: clamp(Number.isFinite(next.audioOffsetMs) ? Number(next.audioOffsetMs) : current.audioOffsetMs, -250, 250),
+            musicVolume: clamp(Number.isFinite(next.musicVolume) ? Number(next.musicVolume) : current.musicVolume, 0, 1),
+            sfxVolume: clamp(Number.isFinite(next.sfxVolume) ? Number(next.sfxVolume) : current.sfxVolume, 0, 1),
+            haptics: typeof next.haptics === 'boolean' ? next.haptics : current.haptics
         };
         this.persist();
     }
@@ -89,21 +95,88 @@ export class SaveStore {
     load() {
         const current = this.readJson(STORAGE_KEY);
         if (current)
-            return this.normalizeV2(current);
-        const legacy = this.readJson(LEGACY_STORAGE_KEY);
-        if (legacy)
-            return this.migrateLegacy(legacy);
+            return this.normalizeV3(current);
+        const v2 = this.readJson(V2_STORAGE_KEY);
+        if (v2)
+            return this.migrateV2(v2);
+        const v1 = this.readJson(V1_STORAGE_KEY);
+        if (v1)
+            return this.migrateV1(v1);
         return structuredClone(DEFAULT_SAVE);
     }
-    normalizeV2(raw) {
+    normalizeV3(raw) {
         if (!raw || typeof raw !== 'object')
             return structuredClone(DEFAULT_SAVE);
         const parsed = raw;
         const settingsRaw = parsed.settings && typeof parsed.settings === 'object'
             ? parsed.settings
             : {};
-        const gamesRaw = parsed.games && typeof parsed.games === 'object'
-            ? parsed.games
+        return {
+            version: 3,
+            settings: {
+                difficulty: isDifficulty(settingsRaw.difficulty) ? settingsRaw.difficulty : DEFAULT_SETTINGS.difficulty,
+                audioOffsetMs: clamp(Number(settingsRaw.audioOffsetMs ?? 0), -250, 250),
+                musicVolume: clamp(Number(settingsRaw.musicVolume ?? DEFAULT_SETTINGS.musicVolume), 0, 1),
+                sfxVolume: clamp(Number(settingsRaw.sfxVolume ?? DEFAULT_SETTINGS.sfxVolume), 0, 1),
+                haptics: asBoolean(settingsRaw.haptics, DEFAULT_SETTINGS.haptics)
+            },
+            games: this.normalizeGames(parsed.games),
+            totalPlays: asNonNegative(parsed.totalPlays)
+        };
+    }
+    migrateV2(raw) {
+        if (!raw || typeof raw !== 'object')
+            return structuredClone(DEFAULT_SAVE);
+        const parsed = raw;
+        const settingsRaw = parsed.settings && typeof parsed.settings === 'object'
+            ? parsed.settings
+            : {};
+        const oldMaster = clamp(Number(settingsRaw.masterVolume ?? 0.8), 0, 1);
+        const games = this.normalizeGames(parsed.games);
+        const totalFromGames = GAME_ORDER.reduce((sum, gameId) => sum + games[gameId].plays, 0);
+        return {
+            version: 3,
+            settings: {
+                difficulty: isDifficulty(settingsRaw.difficulty) ? settingsRaw.difficulty : DEFAULT_SETTINGS.difficulty,
+                audioOffsetMs: clamp(Number(settingsRaw.audioOffsetMs ?? 0), -250, 250),
+                musicVolume: oldMaster * 0.9,
+                sfxVolume: oldMaster,
+                haptics: true
+            },
+            games,
+            totalPlays: Math.max(asNonNegative(parsed.totalPlays), totalFromGames)
+        };
+    }
+    migrateV1(raw) {
+        if (!raw || typeof raw !== 'object')
+            return structuredClone(DEFAULT_SAVE);
+        const parsed = raw;
+        const settingsRaw = parsed.settings && typeof parsed.settings === 'object'
+            ? parsed.settings
+            : {};
+        const highScore = asNonNegative(parsed.highScore);
+        const legacyPlays = asNonNegative(parsed.plays);
+        const oldMaster = clamp(Number(settingsRaw.masterVolume ?? 0.8), 0, 1);
+        const migrated = structuredClone(DEFAULT_SAVE);
+        migrated.settings = {
+            difficulty: isDifficulty(settingsRaw.difficulty) ? settingsRaw.difficulty : DEFAULT_SETTINGS.difficulty,
+            audioOffsetMs: clamp(Number(settingsRaw.audioOffsetMs ?? 0), -250, 250),
+            musicVolume: oldMaster * 0.9,
+            sfxVolume: oldMaster,
+            haptics: true
+        };
+        migrated.games['mendako-pop'] = {
+            highScore,
+            bestCombo: asNonNegative(parsed.bestCombo),
+            bestStars: starsFromScore(highScore),
+            plays: legacyPlays
+        };
+        migrated.totalPlays = legacyPlays;
+        return migrated;
+    }
+    normalizeGames(rawGames) {
+        const gamesRaw = rawGames && typeof rawGames === 'object'
+            ? rawGames
             : {};
         const games = {};
         for (const gameId of GAME_ORDER) {
@@ -117,41 +190,7 @@ export class SaveStore {
                 plays: asNonNegative(recordRaw.plays)
             };
         }
-        const totalFromGames = GAME_ORDER.reduce((sum, gameId) => sum + games[gameId].plays, 0);
-        return {
-            version: 2,
-            settings: {
-                difficulty: isDifficulty(settingsRaw.difficulty) ? settingsRaw.difficulty : DEFAULT_SETTINGS.difficulty,
-                audioOffsetMs: clamp(Number(settingsRaw.audioOffsetMs ?? 0), -200, 200),
-                masterVolume: clamp(Number(settingsRaw.masterVolume ?? 0.8), 0, 1)
-            },
-            games,
-            totalPlays: Math.max(asNonNegative(parsed.totalPlays), totalFromGames)
-        };
-    }
-    migrateLegacy(raw) {
-        if (!raw || typeof raw !== 'object')
-            return structuredClone(DEFAULT_SAVE);
-        const parsed = raw;
-        const settingsRaw = parsed.settings && typeof parsed.settings === 'object'
-            ? parsed.settings
-            : {};
-        const highScore = asNonNegative(parsed.highScore);
-        const legacyPlays = asNonNegative(parsed.plays);
-        const migrated = structuredClone(DEFAULT_SAVE);
-        migrated.settings = {
-            difficulty: isDifficulty(settingsRaw.difficulty) ? settingsRaw.difficulty : DEFAULT_SETTINGS.difficulty,
-            audioOffsetMs: clamp(Number(settingsRaw.audioOffsetMs ?? 0), -200, 200),
-            masterVolume: clamp(Number(settingsRaw.masterVolume ?? 0.8), 0, 1)
-        };
-        migrated.games['mendako-pop'] = {
-            highScore,
-            bestCombo: asNonNegative(parsed.bestCombo),
-            bestStars: starsFromScore(highScore),
-            plays: legacyPlays
-        };
-        migrated.totalPlays = legacyPlays;
-        return migrated;
+        return games;
     }
     readJson(key) {
         try {

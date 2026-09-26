@@ -29,12 +29,12 @@ export class GameRenderer {
         ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
         const shake = state.missPulse > 0 ? Math.sin(timeMs * 0.12) * state.missPulse * 6 : 0;
         ctx.translate(shake, 0);
-        this.drawBackground(timeMs, state.gameId, state.missPulse);
+        this.drawBackground(timeMs, state.gameId, state.missPulse, state.musicPulse);
         if (state.mode === 'game') {
             this.drawBeatGuide(state.targets, state.beat, state.gameId);
         }
         const idleWave = Math.sin(timeMs / 650) * 4;
-        const beatBounce = state.mode === 'game' ? Math.max(0, Math.sin(state.beat * Math.PI)) * 3 : 0;
+        const beatBounce = state.mode === 'game' ? state.musicPulse * 6 : 0;
         const hitBounce = state.hitPulse * 22;
         const centerY = this.height * 0.53 + idleWave - beatBounce - hitBounce;
         this.drawCharacter(definition.id, this.width / 2, centerY, 1 + state.hitPulse * 0.08, timeMs, state.hitPulse, state.missPulse, cuePulse);
@@ -55,7 +55,7 @@ export class GameRenderer {
         this.canvas.height = Math.round(this.height * this.dpr);
         this.bubbles = [];
     }
-    drawBackground(timeMs, gameId, missPulse) {
+    drawBackground(timeMs, gameId, missPulse, musicPulse) {
         const ctx = this.ctx;
         const palette = gameId === 'crab-clap'
             ? ['#071c2f', '#0a4254', '#102537']
@@ -68,6 +68,14 @@ export class GameRenderer {
         gradient.addColorStop(1, palette[2]);
         ctx.fillStyle = gradient;
         ctx.fillRect(-10, 0, this.width + 20, this.height);
+        if (musicPulse > 0) {
+            const glow = ctx.createRadialGradient(this.width / 2, this.height * 0.48, 10, this.width / 2, this.height * 0.48, Math.max(this.width, this.height) * 0.62);
+            const pulseColor = gameId === 'crab-clap' ? '255, 143, 115' : gameId === 'fugu-puku' ? '222, 239, 126' : '255, 137, 190';
+            glow.addColorStop(0, `rgba(${pulseColor}, ${0.075 * musicPulse})`);
+            glow.addColorStop(1, `rgba(${pulseColor}, 0)`);
+            ctx.fillStyle = glow;
+            ctx.fillRect(-10, 0, this.width + 20, this.height);
+        }
         ctx.globalAlpha = 0.1;
         for (let i = 0; i < 7; i += 1) {
             const x = ((i * 173 + timeMs * 0.008) % (this.width + 220)) - 110;
@@ -406,7 +414,7 @@ export class GameRenderer {
         ctx.font = '900 19px system-ui, sans-serif';
         ctx.textAlign = 'center';
         ctx.fillStyle = '#dffbff';
-        const label = gameId === 'crab-clap' ? 'おてほん！' : gameId === 'fugu-puku' ? 'ぷく！' : '♪';
+        const label = gameId === 'crab-clap' ? 'おてほん ♪' : gameId === 'fugu-puku' ? 'ぷく ♪' : 'きいて ♪';
         ctx.fillText(label, this.width / 2, this.height * 0.34);
         ctx.restore();
     }

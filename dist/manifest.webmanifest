@@ -1,7 +1,7 @@
 {
   "name": "深海リズムパーティ",
   "short_name": "深海リズム",
-  "description": "深海キャラクターと遊ぶ、3つの短時間オリジナルリズムゲーム",
+  "description": "オリジナルBGMと一体になって遊ぶ、深海キャラクターのリズムゲーム",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

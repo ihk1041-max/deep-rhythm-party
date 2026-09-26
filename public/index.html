@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
     <meta name="theme-color" content="#071a33" />
-    <meta name="description" content="深海キャラクターと遊ぶ、短時間のオリジナルリズムゲーム" />
+    <meta name="description" content="オリジナルBGMと一体になって遊ぶ、深海キャラクターのリズムゲーム" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icons/icon-192.png" />
     <link rel="apple-touch-icon" href="./icons/icon-192.png" />
@@ -18,7 +18,9 @@
       <section id="title-panel" class="panel title-panel">
         <p class="eyebrow">DEEP SEA RHYTHM</p>
         <h1>深海リズム<br />パーティ</h1>
-        <p class="subtitle">3つのリズムであそぼう！</p>
+        <p class="subtitle">音楽を聴いて、合図の続きをタップ！</p>
+
+        <div class="version-chip">v3 · ORIGINAL MUSIC</div>
 
         <div class="stats-card" aria-label="プレイ記録">
           <div><span>TOTAL STARS</span><strong id="total-stars">0 / 9</strong></div>
@@ -29,14 +31,14 @@
           <button id="play-button" class="primary-button" type="button">あそぶ</button>
           <button id="settings-button" class="secondary-button" type="button">せってい</button>
         </div>
-        <p class="small-note">スマホ：画面タップ / PC：クリック・Space</p>
+        <p class="small-note">ヘッドホン推奨 · スマホ：画面タップ / PC：クリック・Space</p>
       </section>
 
       <section id="select-panel" class="panel select-panel" hidden>
         <div class="panel-header">
           <div>
-            <p class="eyebrow">SELECT GAME</p>
-            <h2>ゲームをえらぶ</h2>
+            <p class="eyebrow">SELECT SONG</p>
+            <h2>曲をえらぶ</h2>
           </div>
         </div>
 
@@ -46,7 +48,8 @@
             <span class="stage-icon" aria-hidden="true">◌</span>
             <span class="stage-copy">
               <strong>メンダコポン</strong>
-              <small>輪が重なる瞬間にポン！</small>
+              <small>曲のノリに合わせて、ポン！</small>
+              <em data-bpm>124 BPM</em>
             </span>
             <span class="stage-record">
               <strong data-stars>☆☆☆</strong>
@@ -60,7 +63,8 @@
             <span class="stage-icon" aria-hidden="true">⌁</span>
             <span class="stage-copy">
               <strong>カニクラップ</strong>
-              <small>お手本3拍をまねしてクラップ！</small>
+              <small>お手本フレーズを、そのまま返そう！</small>
+              <em data-bpm>116 BPM</em>
             </span>
             <span class="stage-record">
               <strong data-stars>☆☆☆</strong>
@@ -74,7 +78,8 @@
             <span class="stage-icon" aria-hidden="true">◎</span>
             <span class="stage-copy">
               <strong>フグぷくぷく</strong>
-              <small>ぷく・ぷく・パン！でふくらもう</small>
+              <small>「ぷく・ぷく」の続きを音楽で決めよう！</small>
+              <em data-bpm>104 BPM</em>
             </span>
             <span class="stage-record">
               <strong data-stars>☆☆☆</strong>
@@ -90,14 +95,17 @@
       <section id="game-panel" class="game-ui" hidden>
         <div class="top-hud">
           <div>
-            <p id="game-stage-label" class="stage-label">STAGE 01</p>
+            <p id="game-stage-label" class="stage-label">STAGE 01 · 124 BPM</p>
             <h2 id="game-title">メンダコポン</h2>
           </div>
-          <strong id="combo-text">COMBO 0</strong>
+          <div class="hud-right">
+            <span id="section-text" class="section-text">COUNT IN</span>
+            <strong id="combo-text"></strong>
+          </div>
         </div>
         <div class="progress-track"><div id="progress-bar" class="progress-bar"></div></div>
-        <div id="game-instruction" class="instruction-chip">黄色い輪が重なる瞬間にタップ</div>
-        <p id="status-text" class="status-text" aria-live="polite">リズムに合わせてタップ！</p>
+        <div id="game-instruction" class="instruction-chip">音楽の拍を感じてタップ</div>
+        <p id="status-text" class="status-text" aria-live="polite">4カウントのあと、音楽にのろう！</p>
       </section>
 
       <section id="result-panel" class="panel result-panel" hidden>
@@ -113,12 +121,13 @@
           <div><span>GREAT</span><strong id="result-great">0</strong></div>
           <div><span>GOOD</span><strong id="result-good">0</strong></div>
           <div><span>MISS</span><strong id="result-miss">0</strong></div>
-          <div class="wide"><span>MAX COMBO</span><strong id="result-combo">0</strong></div>
+          <div><span>MAX COMBO</span><strong id="result-combo">0</strong></div>
+          <div><span>AVG TIMING</span><strong id="result-timing">—</strong></div>
         </div>
 
         <div class="button-stack compact">
           <button id="retry-button" class="primary-button" type="button">もういっかい</button>
-          <button id="result-select-button" class="secondary-button" type="button">ゲームをえらぶ</button>
+          <button id="result-select-button" class="secondary-button" type="button">曲をえらぶ</button>
         </div>
       </section>
 
@@ -137,17 +146,28 @@
 
         <label class="setting-block">
           <span class="setting-heading">タイミング補正 <strong id="offset-value">0 ms</strong></span>
-          <input id="offset-range" type="range" min="-200" max="200" step="5" value="0" />
-          <small>＋にすると入力を早めに補正します。</small>
+          <input id="offset-range" type="range" min="-250" max="250" step="5" value="0" />
+          <small>判定がいつも早い／遅い場合に調整します。</small>
         </label>
 
         <label class="setting-block">
-          <span class="setting-heading">音量 <strong id="volume-value">80%</strong></span>
-          <input id="volume-range" type="range" min="0" max="100" step="5" value="80" />
+          <span class="setting-heading">BGM <strong id="music-value">72%</strong></span>
+          <input id="music-range" type="range" min="0" max="100" step="5" value="72" />
+        </label>
+
+        <label class="setting-block">
+          <span class="setting-heading">タップ音・合図 <strong id="sfx-value">90%</strong></span>
+          <input id="sfx-range" type="range" min="0" max="100" step="5" value="90" />
+        </label>
+
+        <label class="setting-row toggle-row">
+          <span>タップ振動</span>
+          <input id="haptics-toggle" type="checkbox" checked />
         </label>
 
         <div class="settings-note">
-          v1の設定・メンダコポン記録は、同じ端末ならv2へ自動移行します。
+          <strong id="latency-info">推定Audio出力遅延: ゲーム開始後に表示</strong><br />
+          v1/v2の設定・スコアは同じ端末ならv3へ自動移行します。
         </div>
 
         <button id="settings-back-button" class="primary-button full-width" type="button">もどる</button>

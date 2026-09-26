@@ -1,13 +1,16 @@
 import { GAME_ORDER } from './games.js';
 import type { Difficulty, GameId, GameRecord, GameResult, GameSettings, SaveData } from './types.js';
 
-const STORAGE_KEY = 'deep-rhythm-party:v2';
-const LEGACY_STORAGE_KEY = 'deep-rhythm-party:v1';
+const STORAGE_KEY = 'deep-rhythm-party:v3';
+const V2_STORAGE_KEY = 'deep-rhythm-party:v2';
+const V1_STORAGE_KEY = 'deep-rhythm-party:v1';
 
 const DEFAULT_SETTINGS: GameSettings = {
   difficulty: 'easy',
   audioOffsetMs: 0,
-  masterVolume: 0.8
+  musicVolume: 0.72,
+  sfxVolume: 0.9,
+  haptics: true
 };
 
 const emptyRecord = (): GameRecord => ({
@@ -18,7 +21,7 @@ const emptyRecord = (): GameRecord => ({
 });
 
 const DEFAULT_SAVE: SaveData = {
-  version: 2,
+  version: 3,
   settings: { ...DEFAULT_SETTINGS },
   games: {
     'mendako-pop': emptyRecord(),
@@ -45,7 +48,10 @@ const asStars = (value: unknown): 0 | 1 | 2 | 3 => {
 };
 
 const starsFromScore = (score: number): 0 | 1 | 2 | 3 =>
-  score >= 90 ? 3 : score >= 65 ? 2 : score >= 45 ? 1 : 0;
+  score >= 90 ? 3 : score >= 68 ? 2 : score >= 48 ? 1 : 0;
+
+const asBoolean = (value: unknown, fallback: boolean): boolean =>
+  typeof value === 'boolean' ? value : fallback;
 
 export interface RecordResultOutcome {
   newHighScore: boolean;
@@ -90,14 +96,20 @@ export class SaveStore {
       difficulty: isDifficulty(next.difficulty) ? next.difficulty : current.difficulty,
       audioOffsetMs: clamp(
         Number.isFinite(next.audioOffsetMs) ? Number(next.audioOffsetMs) : current.audioOffsetMs,
-        -200,
-        200
+        -250,
+        250
       ),
-      masterVolume: clamp(
-        Number.isFinite(next.masterVolume) ? Number(next.masterVolume) : current.masterVolume,
+      musicVolume: clamp(
+        Number.isFinite(next.musicVolume) ? Number(next.musicVolume) : current.musicVolume,
         0,
         1
-      )
+      ),
+      sfxVolume: clamp(
+        Number.isFinite(next.sfxVolume) ? Number(next.sfxVolume) : current.sfxVolume,
+        0,
+        1
+      ),
+      haptics: typeof next.haptics === 'boolean' ? next.haptics : current.haptics
     };
     this.persist();
   }
@@ -126,25 +138,96 @@ export class SaveStore {
 
   private load(): SaveData {
     const current = this.readJson(STORAGE_KEY);
-    if (current) return this.normalizeV2(current);
+    if (current) return this.normalizeV3(current);
 
-    const legacy = this.readJson(LEGACY_STORAGE_KEY);
-    if (legacy) return this.migrateLegacy(legacy);
+    const v2 = this.readJson(V2_STORAGE_KEY);
+    if (v2) return this.migrateV2(v2);
+
+    const v1 = this.readJson(V1_STORAGE_KEY);
+    if (v1) return this.migrateV1(v1);
 
     return structuredClone(DEFAULT_SAVE);
   }
 
-  private normalizeV2(raw: unknown): SaveData {
+  private normalizeV3(raw: unknown): SaveData {
     if (!raw || typeof raw !== 'object') return structuredClone(DEFAULT_SAVE);
     const parsed = raw as Record<string, unknown>;
     const settingsRaw = parsed.settings && typeof parsed.settings === 'object'
       ? parsed.settings as Record<string, unknown>
       : {};
-    const gamesRaw = parsed.games && typeof parsed.games === 'object'
-      ? parsed.games as Partial<Record<GameId, unknown>>
-      : {};
 
+    return {
+      version: 3,
+      settings: {
+        difficulty: isDifficulty(settingsRaw.difficulty) ? settingsRaw.difficulty : DEFAULT_SETTINGS.difficulty,
+        audioOffsetMs: clamp(Number(settingsRaw.audioOffsetMs ?? 0), -250, 250),
+        musicVolume: clamp(Number(settingsRaw.musicVolume ?? DEFAULT_SETTINGS.musicVolume), 0, 1),
+        sfxVolume: clamp(Number(settingsRaw.sfxVolume ?? DEFAULT_SETTINGS.sfxVolume), 0, 1),
+        haptics: asBoolean(settingsRaw.haptics, DEFAULT_SETTINGS.haptics)
+      },
+      games: this.normalizeGames(parsed.games),
+      totalPlays: asNonNegative(parsed.totalPlays)
+    };
+  }
+
+  private migrateV2(raw: unknown): SaveData {
+    if (!raw || typeof raw !== 'object') return structuredClone(DEFAULT_SAVE);
+    const parsed = raw as Record<string, unknown>;
+    const settingsRaw = parsed.settings && typeof parsed.settings === 'object'
+      ? parsed.settings as Record<string, unknown>
+      : {};
+    const oldMaster = clamp(Number(settingsRaw.masterVolume ?? 0.8), 0, 1);
+    const games = this.normalizeGames(parsed.games);
+    const totalFromGames = GAME_ORDER.reduce((sum, gameId) => sum + games[gameId].plays, 0);
+
+    return {
+      version: 3,
+      settings: {
+        difficulty: isDifficulty(settingsRaw.difficulty) ? settingsRaw.difficulty : DEFAULT_SETTINGS.difficulty,
+        audioOffsetMs: clamp(Number(settingsRaw.audioOffsetMs ?? 0), -250, 250),
+        musicVolume: oldMaster * 0.9,
+        sfxVolume: oldMaster,
+        haptics: true
+      },
+      games,
+      totalPlays: Math.max(asNonNegative(parsed.totalPlays), totalFromGames)
+    };
+  }
+
+  private migrateV1(raw: unknown): SaveData {
+    if (!raw || typeof raw !== 'object') return structuredClone(DEFAULT_SAVE);
+    const parsed = raw as Record<string, unknown>;
+    const settingsRaw = parsed.settings && typeof parsed.settings === 'object'
+      ? parsed.settings as Record<string, unknown>
+      : {};
+    const highScore = asNonNegative(parsed.highScore);
+    const legacyPlays = asNonNegative(parsed.plays);
+    const oldMaster = clamp(Number(settingsRaw.masterVolume ?? 0.8), 0, 1);
+
+    const migrated = structuredClone(DEFAULT_SAVE);
+    migrated.settings = {
+      difficulty: isDifficulty(settingsRaw.difficulty) ? settingsRaw.difficulty : DEFAULT_SETTINGS.difficulty,
+      audioOffsetMs: clamp(Number(settingsRaw.audioOffsetMs ?? 0), -250, 250),
+      musicVolume: oldMaster * 0.9,
+      sfxVolume: oldMaster,
+      haptics: true
+    };
+    migrated.games['mendako-pop'] = {
+      highScore,
+      bestCombo: asNonNegative(parsed.bestCombo),
+      bestStars: starsFromScore(highScore),
+      plays: legacyPlays
+    };
+    migrated.totalPlays = legacyPlays;
+    return migrated;
+  }
+
+  private normalizeGames(rawGames: unknown): Record<GameId, GameRecord> {
+    const gamesRaw = rawGames && typeof rawGames === 'object'
+      ? rawGames as Partial<Record<GameId, unknown>>
+      : {};
     const games = {} as Record<GameId, GameRecord>;
+
     for (const gameId of GAME_ORDER) {
       const recordRaw = gamesRaw[gameId] && typeof gamesRaw[gameId] === 'object'
         ? gamesRaw[gameId] as Record<string, unknown>
@@ -156,43 +239,7 @@ export class SaveStore {
         plays: asNonNegative(recordRaw.plays)
       };
     }
-
-    const totalFromGames = GAME_ORDER.reduce((sum, gameId) => sum + games[gameId].plays, 0);
-    return {
-      version: 2,
-      settings: {
-        difficulty: isDifficulty(settingsRaw.difficulty) ? settingsRaw.difficulty : DEFAULT_SETTINGS.difficulty,
-        audioOffsetMs: clamp(Number(settingsRaw.audioOffsetMs ?? 0), -200, 200),
-        masterVolume: clamp(Number(settingsRaw.masterVolume ?? 0.8), 0, 1)
-      },
-      games,
-      totalPlays: Math.max(asNonNegative(parsed.totalPlays), totalFromGames)
-    };
-  }
-
-  private migrateLegacy(raw: unknown): SaveData {
-    if (!raw || typeof raw !== 'object') return structuredClone(DEFAULT_SAVE);
-    const parsed = raw as Record<string, unknown>;
-    const settingsRaw = parsed.settings && typeof parsed.settings === 'object'
-      ? parsed.settings as Record<string, unknown>
-      : {};
-    const highScore = asNonNegative(parsed.highScore);
-    const legacyPlays = asNonNegative(parsed.plays);
-
-    const migrated = structuredClone(DEFAULT_SAVE);
-    migrated.settings = {
-      difficulty: isDifficulty(settingsRaw.difficulty) ? settingsRaw.difficulty : DEFAULT_SETTINGS.difficulty,
-      audioOffsetMs: clamp(Number(settingsRaw.audioOffsetMs ?? 0), -200, 200),
-      masterVolume: clamp(Number(settingsRaw.masterVolume ?? 0.8), 0, 1)
-    };
-    migrated.games['mendako-pop'] = {
-      highScore,
-      bestCombo: asNonNegative(parsed.bestCombo),
-      bestStars: starsFromScore(highScore),
-      plays: legacyPlays
-    };
-    migrated.totalPlays = legacyPlays;
-    return migrated;
+    return games;
   }
 
   private readJson(key: string): unknown | null {
