@@ -1,10 +1,13 @@
 import { AudioEngine } from './audio.js';
-import type { Difficulty, GameResult, Judge, JudgeCounts, RenderState, TargetState } from './types.js';
-
-const BPM = 120;
-const SECONDS_PER_BEAT = 60 / BPM;
-const TARGET_BEATS = [4, 6, 8, 10, 12, 14, 16, 18] as const;
-const END_BEAT = 20;
+import type {
+  Difficulty,
+  GameDefinition,
+  GameResult,
+  Judge,
+  JudgeCounts,
+  RenderState,
+  TargetState
+} from './types.js';
 
 const WINDOWS: Record<Difficulty, readonly [number, number, number]> = {
   easy: [70, 130, 190],
@@ -21,6 +24,7 @@ const POINTS: Record<Judge, number> = {
 
 export interface RhythmGameOptions {
   audio: AudioEngine;
+  definition: GameDefinition;
   difficulty: Difficulty;
   audioOffsetMs: number;
   onHud: (combo: number, progress: number) => void;
@@ -30,12 +34,14 @@ export interface RhythmGameOptions {
 
 export class RhythmGame {
   private readonly audio: AudioEngine;
+  private readonly definition: GameDefinition;
   private readonly difficulty: Difficulty;
   private readonly audioOffsetMs: number;
   private readonly onHud: RhythmGameOptions['onHud'];
   private readonly onJudge: RhythmGameOptions['onJudge'];
   private readonly onFinish: RhythmGameOptions['onFinish'];
-  private readonly targets: TargetState[] = TARGET_BEATS.map((beat) => ({ beat }));
+  private readonly targets: TargetState[];
+  private readonly secondsPerBeat: number;
 
   private startTime = 0;
   private playing = false;
@@ -45,14 +51,18 @@ export class RhythmGame {
   private lastJudge: Judge | undefined;
   private lastJudgeAt = 0;
   private hitPulseStartedAt = -Infinity;
+  private missPulseStartedAt = -Infinity;
 
   constructor(options: RhythmGameOptions) {
     this.audio = options.audio;
+    this.definition = options.definition;
     this.difficulty = options.difficulty;
     this.audioOffsetMs = options.audioOffsetMs;
     this.onHud = options.onHud;
     this.onJudge = options.onJudge;
     this.onFinish = options.onFinish;
+    this.targets = this.definition.targets.map((beat) => ({ beat }));
+    this.secondsPerBeat = 60 / this.definition.bpm;
   }
 
   start(): void {
@@ -61,14 +71,19 @@ export class RhythmGame {
     this.playing = true;
     this.finished = false;
 
-    for (let beat = 0; beat <= END_BEAT; beat += 1) {
+    for (let beat = 0; beat <= this.definition.endBeat; beat += 1) {
       const time = this.beatToTime(beat);
       if (beat < 4) {
         this.audio.scheduleCount(time, beat === 3);
-      } else {
-        const accent = TARGET_BEATS.includes(beat as (typeof TARGET_BEATS)[number]);
-        this.audio.scheduleBeat(time, accent);
+        continue;
       }
+
+      const kind = this.definition.cueBeats.includes(beat)
+        ? 'cue'
+        : this.definition.targets.includes(beat)
+          ? 'target'
+          : 'beat';
+      this.audio.scheduleGameBeat(this.definition.id, time, kind);
     }
   }
 
@@ -80,8 +95,7 @@ export class RhythmGame {
   update(): void {
     if (!this.playing || this.finished) return;
 
-    const now = this.audio.now();
-    const correctedNow = now - this.audioOffsetMs / 1000;
+    const correctedNow = this.audio.now() - this.audioOffsetMs / 1000;
     const maxWindowMs = WINDOWS[this.difficulty][2];
 
     for (const target of this.targets) {
@@ -95,7 +109,7 @@ export class RhythmGame {
     const judgedCount = this.targets.filter((target) => target.judge).length;
     this.onHud(this.combo, judgedCount / this.targets.length);
 
-    if (judgedCount === this.targets.length && this.getBeat() > END_BEAT - 0.25) {
+    if (judgedCount === this.targets.length && this.getBeat() >= this.definition.endBeat - 0.25) {
       this.finish();
     }
   }
@@ -112,16 +126,13 @@ export class RhythmGame {
     for (const target of this.targets) {
       if (target.judge) continue;
       const deltaMs = (correctedTap - this.beatToTime(target.beat)) * 1000;
-      const abs = Math.abs(deltaMs);
-      if (abs < Math.abs(bestDelta)) {
+      if (Math.abs(deltaMs) < Math.abs(bestDelta)) {
         best = target;
         bestDelta = deltaMs;
       }
     }
 
-    if (!best || Math.abs(bestDelta) > maxWindowMs) {
-      return;
-    }
+    if (!best || Math.abs(bestDelta) > maxWindowMs) return;
 
     const [perfectMs, greatMs] = WINDOWS[this.difficulty];
     const abs = Math.abs(bestDelta);
@@ -132,23 +143,28 @@ export class RhythmGame {
   getRenderState(mode: RenderState['mode']): RenderState {
     const now = this.playing ? this.audio.now() : 0;
     const ageMs = this.lastJudgeAt > 0 ? Math.max(0, (now - this.lastJudgeAt) * 1000) : Number.POSITIVE_INFINITY;
-    const pulseAge = now - this.hitPulseStartedAt;
-    const hitPulse = pulseAge >= 0 && pulseAge < 0.28 ? 1 - pulseAge / 0.28 : 0;
+    const hitAge = now - this.hitPulseStartedAt;
+    const missAge = now - this.missPulseStartedAt;
+    const hitPulse = hitAge >= 0 && hitAge < 0.32 ? 1 - hitAge / 0.32 : 0;
+    const missPulse = missAge >= 0 && missAge < 0.36 ? 1 - missAge / 0.36 : 0;
 
     return {
       mode,
+      gameId: this.definition.id,
       beat: this.getBeat(),
       targets: this.targets,
+      cueBeats: this.definition.cueBeats,
       ...(this.lastJudge ? { lastJudge: this.lastJudge } : {}),
       lastJudgeAgeMs: ageMs,
       combo: this.combo,
-      hitPulse
+      hitPulse,
+      missPulse
     };
   }
 
   getBeat(): number {
     if (!this.playing) return 0;
-    return (this.audio.now() - this.startTime) / SECONDS_PER_BEAT;
+    return (this.audio.now() - this.startTime) / this.secondsPerBeat;
   }
 
   private applyJudge(target: TargetState, judge: Judge, deltaMs: number, fromTap: boolean): void {
@@ -159,13 +175,14 @@ export class RhythmGame {
 
     if (judge === 'MISS') {
       this.combo = 0;
+      this.missPulseStartedAt = this.audio.now();
     } else {
       this.combo += 1;
       this.maxCombo = Math.max(this.maxCombo, this.combo);
       if (fromTap) this.hitPulseStartedAt = this.audio.now();
     }
 
-    this.audio.playHit(judge);
+    this.audio.playHit(judge, this.definition.id);
     this.onJudge(judge, Math.round(deltaMs));
   }
 
@@ -183,11 +200,11 @@ export class RhythmGame {
     }
 
     const score = Math.round(total / this.targets.length);
-    const stars: 1 | 2 | 3 = score >= 90 ? 3 : score >= 65 ? 2 : 1;
-    this.onFinish({ score, maxCombo: this.maxCombo, counts, stars });
+    const stars: 0 | 1 | 2 | 3 = score >= 90 ? 3 : score >= 65 ? 2 : score >= 45 ? 1 : 0;
+    this.onFinish({ gameId: this.definition.id, score, maxCombo: this.maxCombo, counts, stars });
   }
 
   private beatToTime(beat: number): number {
-    return this.startTime + beat * SECONDS_PER_BEAT;
+    return this.startTime + beat * this.secondsPerBeat;
   }
 }

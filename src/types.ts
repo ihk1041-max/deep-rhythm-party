@@ -1,5 +1,8 @@
 export type Difficulty = 'easy' | 'normal' | 'hard';
 export type Judge = 'PERFECT' | 'GREAT' | 'GOOD' | 'MISS';
+export type GameId = 'mendako-pop' | 'crab-clap' | 'fugu-puku';
+export type AppMode = 'title' | 'select' | 'game' | 'result' | 'settings';
+export type CharacterKind = 'mendako' | 'crab' | 'fugu';
 
 export interface GameSettings {
   difficulty: Difficulty;
@@ -7,12 +10,18 @@ export interface GameSettings {
   masterVolume: number;
 }
 
-export interface SaveData {
-  version: 1;
-  settings: GameSettings;
+export interface GameRecord {
   highScore: number;
   bestCombo: number;
+  bestStars: 0 | 1 | 2 | 3;
   plays: number;
+}
+
+export interface SaveData {
+  version: 2;
+  settings: GameSettings;
+  games: Record<GameId, GameRecord>;
+  totalPlays: number;
 }
 
 export interface JudgeCounts {
@@ -23,10 +32,11 @@ export interface JudgeCounts {
 }
 
 export interface GameResult {
+  gameId: GameId;
   score: number;
   maxCombo: number;
   counts: JudgeCounts;
-  stars: 1 | 2 | 3;
+  stars: 0 | 1 | 2 | 3;
 }
 
 export interface TargetState {
@@ -35,12 +45,29 @@ export interface TargetState {
   deltaMs?: number;
 }
 
+export interface GameDefinition {
+  id: GameId;
+  stage: number;
+  title: string;
+  shortDescription: string;
+  instruction: string;
+  bpm: number;
+  endBeat: number;
+  targets: readonly number[];
+  cueBeats: readonly number[];
+  character: CharacterKind;
+  accent: 'pink' | 'coral' | 'lime';
+}
+
 export interface RenderState {
-  mode: 'title' | 'game' | 'result' | 'settings';
+  mode: AppMode;
+  gameId: GameId;
   beat: number;
   targets: readonly TargetState[];
+  cueBeats: readonly number[];
   lastJudge?: Judge;
   lastJudgeAgeMs: number;
   combo: number;
   hitPulse: number;
+  missPulse: number;
 }
