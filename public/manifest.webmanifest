@@ -1,0 +1,25 @@
+{
+  "name": "深海リズムパーティ",
+  "short_name": "深海リズム",
+  "description": "メンダコと遊ぶ、短時間のオリジナル深海リズムゲーム",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#061326",
+  "theme_color": "#071a33",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

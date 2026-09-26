@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#071a33" />
+    <meta name="description" content="メンダコと遊ぶ、短時間のオリジナル深海リズムゲーム" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+    <link rel="stylesheet" href="./styles.css" />
+    <title>深海リズムパーティ</title>
+  </head>
+  <body>
+    <main id="app" aria-label="深海リズムパーティ">
+      <canvas id="game-canvas" aria-label="ゲーム画面"></canvas>
+
+      <section id="title-panel" class="panel title-panel">
+        <p class="eyebrow">DEEP SEA RHYTHM</p>
+        <h1>深海リズム<br />パーティ</h1>
+        <p class="subtitle">メンダコと「ポン！」しよう</p>
+
+        <div class="stats-card" aria-label="ベスト記録">
+          <div><span>HIGH SCORE</span><strong id="high-score">0</strong></div>
+          <div><span>BEST COMBO</span><strong id="best-combo">0</strong></div>
+        </div>
+
+        <div class="button-stack">
+          <button id="play-button" class="primary-button" type="button">メンダコポン！</button>
+          <button id="settings-button" class="secondary-button" type="button">せってい</button>
+        </div>
+        <p class="small-note">スマホ：画面タップ / PC：クリック・Space</p>
+      </section>
+
+      <section id="game-panel" class="game-ui" hidden>
+        <div class="top-hud">
+          <div>
+            <p class="stage-label">STAGE 01</p>
+            <h2>メンダコポン</h2>
+          </div>
+          <strong id="combo-text">COMBO 0</strong>
+        </div>
+        <div class="progress-track"><div id="progress-bar" class="progress-bar"></div></div>
+        <div class="instruction-chip">黄色い輪が重なる瞬間にタップ</div>
+        <p id="status-text" class="status-text" aria-live="polite">音に合わせて画面をタップ！</p>
+      </section>
+
+      <section id="result-panel" class="panel result-panel" hidden>
+        <p class="eyebrow">RESULT</p>
+        <div class="score-row"><strong id="result-score">0</strong><span>点</span></div>
+        <div id="result-stars" class="stars">☆☆☆</div>
+        <p id="result-message" class="result-message">いいリズム！</p>
+
+        <div class="result-grid">
+          <div><span>PERFECT</span><strong id="result-perfect">0</strong></div>
+          <div><span>GREAT</span><strong id="result-great">0</strong></div>
+          <div><span>GOOD</span><strong id="result-good">0</strong></div>
+          <div><span>MISS</span><strong id="result-miss">0</strong></div>
+          <div class="wide"><span>MAX COMBO</span><strong id="result-combo">0</strong></div>
+        </div>
+
+        <div class="button-stack compact">
+          <button id="retry-button" class="primary-button" type="button">もういっかい</button>
+          <button id="result-title-button" class="secondary-button" type="button">タイトルへ</button>
+        </div>
+      </section>
+
+      <section id="settings-panel" class="panel settings-panel" hidden>
+        <p class="eyebrow">SETTINGS</p>
+        <h2>せってい</h2>
+
+        <label class="setting-row">
+          <span>むずかしさ</span>
+          <select id="difficulty-select">
+            <option value="easy">やさしい</option>
+            <option value="normal">ふつう</option>
+            <option value="hard">むずかしい</option>
+          </select>
+        </label>
+
+        <label class="setting-block">
+          <span class="setting-heading">タイミング補正 <strong id="offset-value">0 ms</strong></span>
+          <input id="offset-range" type="range" min="-200" max="200" step="5" value="0" />
+          <small>＋にすると入力を早めに補正します。</small>
+        </label>
+
+        <label class="setting-block">
+          <span class="setting-heading">音量 <strong id="volume-value">80%</strong></span>
+          <input id="volume-range" type="range" min="0" max="100" step="5" value="80" />
+        </label>
+
+        <button id="settings-back-button" class="primary-button" type="button">もどる</button>
+      </section>
+    </main>
+
+    <script type="module" src="./assets/main.js"></script>
+  </body>
+</html>
