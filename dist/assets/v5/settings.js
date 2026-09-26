@@ -1,5 +1,6 @@
 import { GAME_ORDER } from './games.js';
-const STORAGE_KEY = 'deep-rhythm-party:v4';
+const STORAGE_KEY = 'deep-rhythm-party:v5';
+const V4_STORAGE_KEY = 'deep-rhythm-party:v4';
 const V3_STORAGE_KEY = 'deep-rhythm-party:v3';
 const V2_STORAGE_KEY = 'deep-rhythm-party:v2';
 const V1_STORAGE_KEY = 'deep-rhythm-party:v1';
@@ -9,9 +10,10 @@ const DEFAULT_SETTINGS = {
 };
 const emptyRecord = () => ({ highScore: 0, bestCombo: 0, bestStars: 0, plays: 0 });
 const emptyGames = () => ({
-    'mendako-pop': emptyRecord(), 'crab-clap': emptyRecord(), 'fugu-puku': emptyRecord(), 'deep-remix': emptyRecord()
+    'mendako-pop': emptyRecord(), 'crab-clap': emptyRecord(), 'fugu-puku': emptyRecord(),
+    'robot-stamp': emptyRecord(), 'cat-dj': emptyRecord(), 'ninja-mochi': emptyRecord(), 'deep-remix': emptyRecord()
 });
-const DEFAULT_SAVE = { version: 4, settings: { ...DEFAULT_SETTINGS }, games: emptyGames(), totalPlays: 0 };
+const DEFAULT_SAVE = { version: 5, settings: { ...DEFAULT_SETTINGS }, games: emptyGames(), totalPlays: 0 };
 const isDifficulty = (v) => v === 'easy' || v === 'normal' || v === 'hard';
 const clamp = (v, min, max) => Math.min(max, Math.max(min, Number.isFinite(v) ? v : min));
 const nn = (v) => Number.isFinite(Number(v)) ? Math.max(0, Number(v)) : 0;
@@ -60,7 +62,10 @@ export class SaveStore {
         return { newHighScore: result.score > beforeHigh, newBestStars: result.stars > beforeStars, unlockedGameId: nextId && !wasUnlocked && this.isUnlocked(nextId) ? nextId : null };
     }
     load() {
-        const v4 = this.read(STORAGE_KEY);
+        const v5 = this.read(STORAGE_KEY);
+        if (v5)
+            return this.normalize(v5);
+        const v4 = this.read(V4_STORAGE_KEY);
         if (v4)
             return this.normalize(v4);
         const v3 = this.read(V3_STORAGE_KEY);
@@ -79,7 +84,7 @@ export class SaveStore {
             return structuredClone(DEFAULT_SAVE);
         const p = raw;
         const s = p.settings && typeof p.settings === 'object' ? p.settings : {};
-        return { version: 4, settings: {
+        return { version: 5, settings: {
                 difficulty: isDifficulty(s.difficulty) ? s.difficulty : DEFAULT_SETTINGS.difficulty,
                 audioOffsetMs: clamp(Number(s.audioOffsetMs ?? 0), -250, 250), musicVolume: clamp(Number(s.musicVolume ?? .72), 0, 1),
                 sfxVolume: clamp(Number(s.sfxVolume ?? .9), 0, 1), haptics: bool(s.haptics, true), autoPractice: bool(s.autoPractice, true)
@@ -92,7 +97,7 @@ export class SaveStore {
         const s = p.settings && typeof p.settings === 'object' ? p.settings : {};
         const master = clamp(Number(s.masterVolume ?? .8), 0, 1);
         const games = this.normalizeGames(p.games);
-        return { version: 4, settings: { difficulty: isDifficulty(s.difficulty) ? s.difficulty : 'easy', audioOffsetMs: clamp(Number(s.audioOffsetMs ?? 0), -250, 250), musicVolume: master * .9, sfxVolume: master, haptics: true, autoPractice: true }, games, totalPlays: Math.max(nn(p.totalPlays), GAME_ORDER.reduce((sum, id) => sum + games[id].plays, 0)) };
+        return { version: 5, settings: { difficulty: isDifficulty(s.difficulty) ? s.difficulty : 'easy', audioOffsetMs: clamp(Number(s.audioOffsetMs ?? 0), -250, 250), musicVolume: master * .9, sfxVolume: master, haptics: true, autoPractice: true }, games, totalPlays: Math.max(nn(p.totalPlays), GAME_ORDER.reduce((sum, id) => sum + games[id].plays, 0)) };
     }
     migrateV1(raw) {
         if (!raw || typeof raw !== 'object')
@@ -104,7 +109,7 @@ export class SaveStore {
         const plays = nn(p.plays);
         const games = emptyGames();
         games['mendako-pop'] = { highScore: high, bestCombo: nn(p.bestCombo), bestStars: starsFromScore(high), plays };
-        return { version: 4, settings: { difficulty: isDifficulty(s.difficulty) ? s.difficulty : 'easy', audioOffsetMs: clamp(Number(s.audioOffsetMs ?? 0), -250, 250), musicVolume: master * .9, sfxVolume: master, haptics: true, autoPractice: true }, games, totalPlays: plays };
+        return { version: 5, settings: { difficulty: isDifficulty(s.difficulty) ? s.difficulty : 'easy', audioOffsetMs: clamp(Number(s.audioOffsetMs ?? 0), -250, 250), musicVolume: master * .9, sfxVolume: master, haptics: true, autoPractice: true }, games, totalPlays: plays };
     }
     normalizeGames(raw) {
         const source = raw && typeof raw === 'object' ? raw : {};

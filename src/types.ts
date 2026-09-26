@@ -1,8 +1,8 @@
 export type Difficulty = 'easy' | 'normal' | 'hard';
 export type Judge = 'PERFECT' | 'GREAT' | 'GOOD' | 'MISS';
-export type GameId = 'mendako-pop' | 'crab-clap' | 'fugu-puku' | 'deep-remix';
+export type GameId = 'mendako-pop' | 'crab-clap' | 'fugu-puku' | 'robot-stamp' | 'cat-dj' | 'ninja-mochi' | 'deep-remix';
 export type AppMode = 'title' | 'select' | 'game' | 'result' | 'settings';
-export type CharacterKind = 'mendako' | 'crab' | 'fugu' | 'ensemble';
+export type CharacterKind = 'mendako' | 'crab' | 'fugu' | 'robot' | 'cat' | 'ninja' | 'ensemble';
 export type VoiceSample = 'hey' | 'go' | 'yeah';
 
 export interface GameSettings {
@@ -22,7 +22,7 @@ export interface GameRecord {
 }
 
 export interface SaveData {
-  version: 4;
+  version: 5;
   settings: GameSettings;
   games: Record<GameId, GameRecord>;
   totalPlays: number;
@@ -76,7 +76,7 @@ export interface GameDefinition {
   practiceTargets: readonly number[];
   practiceCueBeats: readonly number[];
   character: CharacterKind;
-  accent: 'pink' | 'coral' | 'lime' | 'aqua';
+  accent: 'pink' | 'coral' | 'lime' | 'aqua' | 'gold' | 'violet' | 'mint';
 }
 
 export interface RenderState {

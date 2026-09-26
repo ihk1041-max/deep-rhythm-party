@@ -54,13 +54,13 @@ export class AudioEngine {
     }
     scheduleSong(gameId, startTime, bpm, endBeat) {
         const spb = 60 / bpm;
-        if (gameId === 'mendako-pop') {
+        if (gameId === 'mendako-pop' || gameId === 'robot-stamp') {
             this.scheduleMendakoSong(startTime, spb, endBeat);
         }
-        else if (gameId === 'crab-clap') {
+        else if (gameId === 'crab-clap' || gameId === 'cat-dj') {
             this.scheduleCrabSong(startTime, spb, endBeat);
         }
-        else if (gameId === 'fugu-puku') {
+        else if (gameId === 'fugu-puku' || gameId === 'ninja-mochi') {
             this.scheduleFuguSong(startTime, spb, endBeat);
         }
         else {
@@ -78,13 +78,13 @@ export class AudioEngine {
                 this.scheduleCue('fugu-puku', time, cueIndex);
             return;
         }
-        if (gameId === 'crab-clap') {
+        if (gameId === 'crab-clap' || gameId === 'cat-dj') {
             this.clap('sfx', time, 0.07, 0.115);
             const notes = [72, 74, 76, 79];
             this.tone('sfx', time, midiToHz(notes[cueIndex % notes.length] ?? 72), 0.08, 0.05, 'square');
             return;
         }
-        if (gameId === 'fugu-puku') {
+        if (gameId === 'fugu-puku' || gameId === 'ninja-mochi') {
             const notes = [67, 71, 74, 76];
             const note = notes[cueIndex % notes.length] ?? 67;
             this.tone('sfx', time, midiToHz(note), 0.11, 0.075, 'sine');
@@ -111,12 +111,12 @@ export class AudioEngine {
             this.playHit(judge, phase === 0 ? 'mendako-pop' : phase === 1 ? 'crab-clap' : 'fugu-puku', beat);
             return;
         }
-        if (gameId === 'crab-clap') {
+        if (gameId === 'crab-clap' || gameId === 'cat-dj') {
             this.clap('sfx', now, 0.08, 0.145 * quality);
             this.tone('sfx', now, midiToHz(72 + (Math.round(beat) % 5)), 0.065, 0.045 * quality, 'square');
             return;
         }
-        if (gameId === 'fugu-puku') {
+        if (gameId === 'fugu-puku' || gameId === 'ninja-mochi') {
             const scale = [67, 69, 71, 74, 76];
             const note = scale[Math.abs(Math.round(beat * 2)) % scale.length] ?? 67;
             this.tone('sfx', now, midiToHz(note), 0.12, 0.105 * quality, 'sine');

@@ -12,7 +12,7 @@ const byId = <T extends HTMLElement>(id: string): T => {
 };
 
 const isGameId = (value: string | undefined): value is GameId =>
-  value === 'mendako-pop' || value === 'crab-clap' || value === 'fugu-puku' || value === 'deep-remix';
+  value === 'mendako-pop' || value === 'crab-clap' || value === 'fugu-puku' || value === 'robot-stamp' || value === 'cat-dj' || value === 'ninja-mochi' || value === 'deep-remix';
 
 class App {
   private readonly audio = new AudioEngine();

@@ -1,15 +1,15 @@
-const CACHE_NAME = 'deep-rhythm-party-v4.0.1';
+const CACHE_NAME = 'rhythm-variety-v5';
 const APP_SHELL = [
   './',
   './index.html',
   './styles.css?v=4.0.1',
-  './assets/v4.0.1/main.js',
-  './assets/v4.0.1/audio.js',
-  './assets/v4.0.1/games.js',
-  './assets/v4.0.1/renderer.js',
-  './assets/v4.0.1/rhythm.js',
-  './assets/v4.0.1/settings.js',
-  './assets/v4.0.1/types.js',
+  './assets/v5/main.js',
+  './assets/v5/audio.js',
+  './assets/v5/games.js',
+  './assets/v5/renderer.js',
+  './assets/v5/rhythm.js',
+  './assets/v5/settings.js',
+  './assets/v5/types.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',

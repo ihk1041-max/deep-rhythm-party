@@ -194,6 +194,18 @@ export class GameRenderer {
       else this.drawFugu(x, y + 4, scale * 0.9, timeMs, hitPulse, missPulse, cuePulse);
       return;
     }
+    if (gameId === 'robot-stamp') {
+      this.drawRobot(x, y + 12, scale, timeMs, hitPulse, missPulse, cuePulse);
+      return;
+    }
+    if (gameId === 'cat-dj') {
+      this.drawCat(x, y + 6, scale, timeMs, hitPulse, missPulse, cuePulse);
+      return;
+    }
+    if (gameId === 'ninja-mochi') {
+      this.drawNinja(x, y + 12, scale, timeMs, hitPulse, missPulse, cuePulse);
+      return;
+    }
     if (gameId === 'crab-clap') {
       this.drawCrab(x, y + 28, scale, timeMs, hitPulse, missPulse, cuePulse);
       return;
@@ -469,10 +481,47 @@ export class GameRenderer {
     ctx.restore();
   }
 
+
+  private drawRobot(x:number,y:number,scale:number,timeMs:number,hitPulse:number,missPulse:number,cuePulse:number):void {
+    const c=this.ctx; c.save(); c.translate(x,y); c.scale(scale,scale);
+    const bob=Math.sin(timeMs/240)*4; c.translate(0,bob);
+    c.fillStyle='#ffd45f'; c.strokeStyle='#3a354f'; c.lineWidth=7; c.lineJoin='round';
+    c.beginPath(); c.roundRect(-74,-72,148,124,26); c.fill(); c.stroke();
+    c.fillStyle='#30374d'; c.beginPath(); c.roundRect(-49,-45,98,48,14); c.fill();
+    c.fillStyle=missPulse>.1?'#ff6a81':'#79f4ff';
+    for(const sx of [-1,1]){c.beginPath(); c.arc(sx*25,-22,8+hitPulse*4,0,Math.PI*2); c.fill();}
+    c.strokeStyle='#3a354f'; c.lineWidth=9; c.beginPath(); c.moveTo(-70,10); c.lineTo(-102,26-cuePulse*18); c.moveTo(70,10); c.lineTo(102,26-cuePulse*18); c.stroke();
+    c.fillStyle='#ff815f'; c.fillRect(-40,17,80,18); c.fillStyle='#fff0a8'; c.fillRect(-28,21,56,10);
+    c.restore();
+  }
+
+  private drawCat(x:number,y:number,scale:number,timeMs:number,hitPulse:number,missPulse:number,cuePulse:number):void {
+    const c=this.ctx; c.save(); c.translate(x,y); c.scale(scale,scale); c.rotate(Math.sin(timeMs/360)*.025);
+    c.fillStyle='#b38cff'; c.beginPath(); c.moveTo(-66,-55); c.lineTo(-84,-98); c.lineTo(-35,-78); c.lineTo(0,-88); c.lineTo(35,-78); c.lineTo(84,-98); c.lineTo(66,-55); c.quadraticCurveTo(88,5,58,54); c.quadraticCurveTo(0,82,-58,54); c.quadraticCurveTo(-88,5,-66,-55); c.fill();
+    c.fillStyle='#1f2340'; c.beginPath(); c.ellipse(-27,-23,10,7,0,0,Math.PI*2); c.ellipse(27,-23,10,7,0,0,Math.PI*2); c.fill();
+    c.fillStyle='#ffccdc'; c.beginPath(); c.moveTo(-7,-2); c.lineTo(7,-2); c.lineTo(0,7); c.closePath(); c.fill();
+    c.strokeStyle='#1f2340'; c.lineWidth=4; c.beginPath(); if(missPulse>.1)c.arc(0,21,12,Math.PI*1.1,Math.PI*1.9); else c.arc(0,6,16,.2,Math.PI-.2); c.stroke();
+    c.strokeStyle='#79f4ff'; c.lineWidth=8; c.beginPath(); c.arc(0,-6,89,-2.55,-.58); c.stroke();
+    c.fillStyle='#313955'; for(const sx of [-1,1]){c.beginPath(); c.arc(sx*79,-36,22+cuePulse*3,0,Math.PI*2); c.fill();}
+    if(hitPulse>.05){c.fillStyle='rgba(255,255,255,.8)'; c.font='900 32px system-ui'; c.textAlign='center'; c.fillText('♪',0,-110-hitPulse*8);}
+    c.restore();
+  }
+
+  private drawNinja(x:number,y:number,scale:number,timeMs:number,hitPulse:number,missPulse:number,cuePulse:number):void {
+    const c=this.ctx; c.save(); c.translate(x,y); c.scale(scale,scale); const crouch=cuePulse*10; c.translate(0,crouch);
+    c.fillStyle='#27334f'; c.beginPath(); c.arc(0,-16,72,0,Math.PI*2); c.fill();
+    c.fillStyle='#f2c6a8'; c.beginPath(); c.roundRect(-48,-48,96,38,15); c.fill();
+    c.fillStyle='#151b2d'; for(const sx of [-1,1]){c.beginPath(); c.ellipse(sx*22,-30,9,5,0,0,Math.PI*2); c.fill();}
+    c.fillStyle='#62e6b8'; c.beginPath(); c.moveTo(54,-50); c.lineTo(104,-70); c.lineTo(76,-31); c.closePath(); c.fill();
+    c.strokeStyle='#dfe7f2'; c.lineWidth=9; c.lineCap='round'; const swing=hitPulse*.9; c.beginPath(); c.moveTo(45,25); c.lineTo(88-Math.sin(swing)*30,-5-Math.cos(swing)*48); c.stroke();
+    c.strokeStyle=missPulse>.1?'#ff718b':'#62e6b8'; c.lineWidth=6; c.beginPath(); c.arc(0,18,20,.25,Math.PI-.25); c.stroke();
+    c.restore();
+  }
+
   private drawBeatGuide(targets: readonly TargetState[], beat: number, gameId: GameId): void {
     const ctx = this.ctx;
     const centerX = this.width / 2;
-    const centerY = gameId === 'crab-clap' ? this.height * 0.56 : this.height * 0.53;
+    const centerY = gameId === 'crab-clap' || gameId === 'cat-dj' ? this.height * 0.56 : this.height * 0.53;
 
     for (const target of targets) {
       if (target.judge) continue;
@@ -484,7 +533,7 @@ export class GameRenderer {
       const alpha = 0.24 + progress * 0.76;
       ctx.save();
       ctx.globalAlpha = alpha;
-      ctx.strokeStyle = gameId === 'fugu-puku' ? '#e9f79b' : gameId === 'crab-clap' ? '#ffd0ae' : gameId === 'deep-remix' ? '#a6f1ff' : '#fff0a8';
+      ctx.strokeStyle = gameId === 'fugu-puku' || gameId === 'ninja-mochi' ? '#e9f79b' : gameId === 'crab-clap' || gameId === 'cat-dj' ? '#ffd0ae' : gameId === 'robot-stamp' ? '#ffe083' : gameId === 'deep-remix' ? '#a6f1ff' : '#fff0a8';
       ctx.lineWidth = 5;
       ctx.beginPath();
       ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
@@ -532,7 +581,7 @@ export class GameRenderer {
     ctx.font = '900 19px system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillStyle = '#dffbff';
-    const label = gameId === 'crab-clap' ? 'おてほん ♪' : gameId === 'fugu-puku' ? 'ぷく ♪' : gameId === 'deep-remix' ? 'SWITCH! ♪' : 'きいて ♪';
+    const label = gameId === 'crab-clap' || gameId === 'cat-dj' ? 'おてほん ♪' : gameId === 'fugu-puku' ? 'ぷく ♪' : gameId === 'robot-stamp' ? 'ピッ ♪' : gameId === 'ninja-mochi' ? '構え！' : gameId === 'deep-remix' ? 'SWITCH! ♪' : 'きいて ♪';
     ctx.fillText(label, this.width / 2, this.height * 0.34);
     ctx.restore();
   }

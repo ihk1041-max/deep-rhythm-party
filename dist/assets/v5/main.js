@@ -9,7 +9,7 @@ const byId = (id) => {
         throw new Error(`Missing element #${id}`);
     return element;
 };
-const isGameId = (value) => value === 'mendako-pop' || value === 'crab-clap' || value === 'fugu-puku' || value === 'deep-remix';
+const isGameId = (value) => value === 'mendako-pop' || value === 'crab-clap' || value === 'fugu-puku' || value === 'robot-stamp' || value === 'cat-dj' || value === 'ninja-mochi' || value === 'deep-remix';
 class App {
     audio = new AudioEngine();
     store = new SaveStore();
