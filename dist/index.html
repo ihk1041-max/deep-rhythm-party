@@ -3,154 +3,89 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-    <meta name="theme-color" content="#071a33" />
-    <meta name="description" content="オリジナルBGMと一体になって遊ぶ、深海キャラクターのリズムゲーム" />
+    <meta name="theme-color" content="#76c7e7" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="リズムバラエティ" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icons/icon-192.png" />
     <link rel="apple-touch-icon" href="./icons/icon-192.png" />
-    <link rel="stylesheet" href="./styles.css?v=4.0.1" />
-    <title>深海リズムパーティ</title>
+    <link rel="stylesheet" href="./styles.css?v=9.0.1" />
+    <title>リズムバラエティ</title>
   </head>
   <body>
-    <main id="app" aria-label="深海リズムパーティ">
+    <div id="app">
       <canvas id="game-canvas" aria-label="ゲーム画面"></canvas>
 
       <section id="title-panel" class="panel title-panel">
-        <p class="eyebrow">DEEP SEA RHYTHM</p>
-        <h1>深海リズム<br />パーティ</h1>
-        <p class="subtitle">音楽を聴いて、合図の続きをタップ！</p>
+        <div class="title-copy">
+          <p class="eyebrow">v9.0.1 · CLASSIC RHYTHM STYLE</p>
+          <h1>リズム<br />バラエティ</h1>
+          <p class="subtitle">12本の個性派ゲーム + 3つのリミックス。</p>
+        </div>
 
-        <div class="version-chip">v5 · RHYTHM VARIETY</div>
-
-        <div class="stats-card" aria-label="プレイ記録">
-          <div><span>TOTAL STARS</span><strong id="total-stars">0 / 21</strong></div>
-          <div><span>TOTAL PLAYS</span><strong id="total-plays">0</strong></div>
+        <div class="stats-card">
+          <div><span>STARS</span><strong id="total-stars">0 / 45</strong></div>
+          <div><span>PLAYS</span><strong id="total-plays">0</strong></div>
         </div>
 
         <div class="button-stack">
-          <button id="play-button" class="primary-button" type="button">あそぶ</button>
+          <button id="start-button" class="primary-button" type="button">ゲームをえらぶ</button>
           <button id="settings-button" class="secondary-button" type="button">せってい</button>
         </div>
-        <p class="small-note">ヘッドホン推奨 · スマホ：画面タップ / PC：クリック・Space</p>
+        <p class="small-note">合図・待ち・コピー・拍キープ。1〜2操作だけで毎ゲームまったく違う遊びにします。</p>
       </section>
 
       <section id="select-panel" class="panel select-panel" hidden>
-        <div class="panel-header">
+        <header class="panel-header">
           <div>
-            <p class="eyebrow">SELECT SONG</p>
-            <h2>曲をえらぶ</h2>
+            <p class="eyebrow">12 MINI GAMES + 3 REMIXES</p>
+            <h2>ゲームをえらぶ</h2>
           </div>
-        </div>
-
-        <p id="select-message" class="select-message" hidden aria-live="polite"></p>
-
-        <div class="stage-list">
-          <button class="stage-card stage-pink" data-game-id="mendako-pop" type="button">
-            <span class="stage-number">01</span>
-            <span class="stage-icon" aria-hidden="true">◌</span>
-            <span class="stage-copy">
-              <strong>メンダコポン</strong>
-              <small>曲のノリに合わせて、ポン！</small>
-              <em data-bpm>124 BPM</em>
-            </span>
-            <span class="stage-record">
-              <strong data-stars>☆☆☆</strong>
-              <small data-score>BEST 0</small>
-            </span>
-            <span class="lock-note" data-lock hidden>前のゲームを遊ぶと解放</span>
-          </button>
-
-          <button class="stage-card stage-coral" data-game-id="crab-clap" type="button">
-            <span class="stage-number">02</span>
-            <span class="stage-icon" aria-hidden="true">⌁</span>
-            <span class="stage-copy">
-              <strong>カニクラップ</strong>
-              <small>お手本フレーズを、そのまま返そう！</small>
-              <em data-bpm>116 BPM</em>
-            </span>
-            <span class="stage-record">
-              <strong data-stars>☆☆☆</strong>
-              <small data-score>BEST 0</small>
-            </span>
-            <span class="lock-note" data-lock hidden>メンダコポンを遊ぶと解放</span>
-          </button>
-
-          <button class="stage-card stage-lime" data-game-id="fugu-puku" type="button">
-            <span class="stage-number">03</span>
-            <span class="stage-icon" aria-hidden="true">◎</span>
-            <span class="stage-copy">
-              <strong>フグぷくぷく</strong>
-              <small>「ぷく・ぷく」の続きを音楽で決めよう！</small>
-              <em data-bpm>104 BPM</em>
-            </span>
-            <span class="stage-record">
-              <strong data-stars>☆☆☆</strong>
-              <small data-score>BEST 0</small>
-            </span>
-            <span class="lock-note" data-lock hidden>カニクラップを遊ぶと解放</span>
-          </button>
-
-
-          <button class="stage-card stage-coral" data-game-id="robot-stamp" type="button">
-            <span class="stage-number">04</span><span class="stage-icon" aria-hidden="true">▣</span>
-            <span class="stage-copy"><strong>ロボスタンプ工場</strong><small>部品をビートでガチャン！</small><em data-bpm>132 BPM</em></span>
-            <span class="stage-record"><strong data-stars>☆☆☆</strong><small data-score>BEST 0</small></span><span class="lock-note" data-lock hidden>フグぷくぷくを遊ぶと解放</span>
-          </button>
-
-          <button class="stage-card stage-aqua" data-game-id="cat-dj" type="button">
-            <span class="stage-number">05</span><span class="stage-icon" aria-hidden="true">♫</span>
-            <span class="stage-copy"><strong>ネコDJ</strong><small>スクラッチをそっくり返そう！</small><em data-bpm>118 BPM</em></span>
-            <span class="stage-record"><strong data-stars>☆☆☆</strong><small data-score>BEST 0</small></span><span class="lock-note" data-lock hidden>ロボスタンプ工場を遊ぶと解放</span>
-          </button>
-
-          <button class="stage-card stage-lime" data-game-id="ninja-mochi" type="button">
-            <span class="stage-number">06</span><span class="stage-icon" aria-hidden="true">◇</span>
-            <span class="stage-copy"><strong>忍者もちつき</strong><small>構えて、待って……ドン！</small><em data-bpm>126 BPM</em></span>
-            <span class="stage-record"><strong data-stars>☆☆☆</strong><small data-score>BEST 0</small></span><span class="lock-note" data-lock hidden>ネコDJを遊ぶと解放</span>
-          </button>
-
-          <button class="stage-card stage-aqua" data-game-id="deep-remix" type="button">
-            <span class="stage-number">07</span>
-            <span class="stage-icon" aria-hidden="true">✦</span>
-            <span class="stage-copy">
-              <strong>ごちゃまぜリミックス</strong>
-              <small>6つの遊びが1曲の中で高速チェンジ！</small>
-              <em data-bpm>132 BPM</em>
-            </span>
-            <span class="stage-record">
-              <strong data-stars>☆☆☆</strong>
-              <small data-score>BEST 0</small>
-            </span>
-            <span class="lock-note" data-lock hidden>忍者もちつきを遊ぶと解放</span>
-          </button>
-        </div>
-
-        <button id="select-back-button" class="secondary-button full-width" type="button">タイトルへ</button>
+          <button id="select-back-button" class="icon-button" type="button" aria-label="もどる">←</button>
+        </header>
+        <p id="free-select-note" class="select-note"></p>
+        <p id="select-message" class="select-message" hidden></p>
+        <div id="stage-list" class="stage-list"></div>
       </section>
 
-      <section id="game-panel" class="game-ui" hidden>
-        <div class="top-hud">
-          <div>
-            <p id="game-stage-label" class="stage-label">STAGE 01 · 124 BPM</p>
-            <h2 id="game-title">メンダコポン</h2>
+      <section id="game-panel" class="game-panel" hidden>
+        <header class="game-topbar">
+          <button id="game-quit-button" class="icon-button dark" type="button" aria-label="ゲームをやめる">×</button>
+          <div class="game-title-block">
+            <span id="game-stage-label">GAME 01 · 120 BPM</span>
+            <strong id="game-title">スカイゴルフ</strong>
           </div>
-          <div class="hud-right">
-            <span id="section-text" class="section-text">COUNT IN</span>
+          <span id="input-mode-badge" class="input-badge">タップ</span>
+        </header>
+
+        <div class="game-hud">
+          <div class="hud-row">
+            <strong id="section-text">COUNT IN</strong>
             <strong id="combo-text"></strong>
           </div>
+          <div class="progress-track"><div id="progress-bar" class="progress-bar"></div></div>
         </div>
-        <div class="progress-track"><div id="progress-bar" class="progress-bar"></div></div>
-        <div id="game-instruction" class="instruction-chip">音楽の拍を感じてタップ</div>
-        <p id="status-text" class="status-text" aria-live="polite">4カウントのあと、音楽にのろう！</p>
+
+        <div class="game-bottom">
+          <p id="status-text" class="status-text">4カウントのあと本番！</p>
+          <p id="game-instruction" class="game-instruction">画面をタップ</p>
+        </div>
       </section>
 
       <section id="result-panel" class="panel result-panel" hidden>
         <p class="eyebrow">RESULT</p>
-        <h2 id="result-game-title" class="result-game-title">メンダコポン</h2>
-        <div id="result-badge" class="result-badge" hidden>NEW HIGH SCORE!</div>
-        <div class="score-row"><strong id="result-score">0</strong><span>点</span></div>
-        <div id="result-stars" class="stars">☆☆☆</div>
-        <p id="result-message" class="result-message">いいリズム！</p>
+        <h2 id="result-game-title">スカイゴルフ</h2>
+        <div id="result-grade" class="result-grade">いい感じ！</div>
+        <div class="score-line"><strong id="result-score">0</strong><span>/100</span></div>
+        <div id="result-stars" class="result-stars">☆☆☆</div>
+        <p id="result-badge" class="result-badge" hidden></p>
+        <p id="result-message" class="result-message"></p>
+        <section class="rhythm-review" aria-label="リズムチェック">
+          <strong>リズムチェック</strong>
+          <ul id="result-review-list"></ul>
+        </section>
 
         <div class="result-grid">
           <div><span>PERFECT</span><strong id="result-perfect">0</strong></div>
@@ -163,58 +98,58 @@
 
         <div class="button-stack compact">
           <button id="retry-button" class="primary-button" type="button">もういっかい</button>
-          <button id="result-select-button" class="secondary-button" type="button">曲をえらぶ</button>
+          <button id="result-select-button" class="secondary-button" type="button">ゲームをえらぶ</button>
         </div>
       </section>
 
       <section id="settings-panel" class="panel settings-panel" hidden>
-        <p class="eyebrow">SETTINGS</p>
-        <h2>せってい</h2>
+        <header class="panel-header settings-header">
+          <div><p class="eyebrow">SETTINGS</p><h2>せってい</h2></div>
+        </header>
 
-        <label class="setting-row">
-          <span>むずかしさ</span>
-          <select id="difficulty-select">
-            <option value="easy">やさしい</option>
-            <option value="normal">ふつう</option>
-            <option value="hard">むずかしい</option>
-          </select>
-        </label>
+        <div class="settings-scroll">
+          <label class="setting-row">
+            <span>判定のきびしさ</span>
+            <select id="difficulty-select">
+              <option value="easy">やさしい</option>
+              <option value="normal">ふつう</option>
+              <option value="hard">むずかしい</option>
+            </select>
+          </label>
 
-        <label class="setting-block">
-          <span class="setting-heading">タイミング補正 <strong id="offset-value">0 ms</strong></span>
-          <input id="offset-range" type="range" min="-250" max="250" step="5" value="0" />
-          <small>判定がいつも早い／遅い場合に調整します。</small>
-        </label>
+          <label class="setting-block">
+            <span class="setting-heading">タイミング補正 <strong id="offset-value">0 ms</strong></span>
+            <input id="offset-range" type="range" min="-250" max="250" step="5" value="0" />
+            <small>いつも早い／遅い場合だけ調整します。</small>
+          </label>
 
-        <label class="setting-block">
-          <span class="setting-heading">BGM <strong id="music-value">72%</strong></span>
-          <input id="music-range" type="range" min="0" max="100" step="5" value="72" />
-        </label>
+          <label class="setting-block">
+            <span class="setting-heading">BGM <strong id="music-value">72%</strong></span>
+            <input id="music-range" type="range" min="0" max="100" step="5" value="72" />
+          </label>
 
-        <label class="setting-block">
-          <span class="setting-heading">タップ音・合図 <strong id="sfx-value">90%</strong></span>
-          <input id="sfx-range" type="range" min="0" max="100" step="5" value="90" />
-        </label>
+          <label class="setting-block">
+            <span class="setting-heading">合図・効果音 <strong id="sfx-value">90%</strong></span>
+            <input id="sfx-range" type="range" min="0" max="100" step="5" value="90" />
+          </label>
 
-        <label class="setting-row toggle-row">
-          <span>タップ振動</span>
-          <input id="haptics-toggle" type="checkbox" checked />
-        </label>
+          <label class="setting-row toggle-row"><span>タップ振動</span><input id="haptics-toggle" type="checkbox" checked /></label>
+          <label class="setting-row toggle-row"><span>初回は練習してから本番</span><input id="practice-toggle" type="checkbox" checked /></label>
+          <label class="setting-row toggle-row"><span>CC0楽曲を使う（取得済みの場合）</span><input id="external-music-toggle" type="checkbox" checked /></label>
+          <label class="setting-row toggle-row"><span>通常プレイでもHUDを表示</span><input id="hud-toggle" type="checkbox" /></label>
+          <label class="setting-row toggle-row"><span>通常プレイでも判定文字を表示</span><input id="judgement-toggle" type="checkbox" /></label>
+          <label class="setting-row toggle-row"><span>開発中：全ゲームを選べる</span><input id="free-select-toggle" type="checkbox" checked /></label>
 
-        <label class="setting-row toggle-row">
-          <span>初回は練習してから本番</span>
-          <input id="practice-toggle" type="checkbox" checked />
-        </label>
-
-        <div class="settings-note">
-          <strong id="latency-info">推定Audio出力遅延: ゲーム開始後に表示</strong><br />
-          v1〜v4の設定・スコアは同じ端末ならv5へ自動移行します。
+          <div class="settings-note">
+            <strong id="latency-info">推定Audio出力遅延: ゲーム開始後に表示</strong><br />
+            v9はステージ内容を全面刷新しています。設定は引き継ぎ、旧ステージのスコアはリセットします。
+          </div>
         </div>
 
         <button id="settings-back-button" class="primary-button full-width" type="button">もどる</button>
       </section>
-    </main>
+    </div>
 
-    <script type="module" src="./assets/v5/main.js"></script>
+    <script type="module" src="./assets/v9/main.js"></script>
   </body>
 </html>

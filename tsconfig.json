@@ -14,7 +14,7 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "rootDir": "src",
-    "outDir": "dist/assets/v5",
+    "outDir": "dist/assets/v9",
     "sourceMap": true
   },
   "include": [

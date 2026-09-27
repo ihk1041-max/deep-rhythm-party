@@ -16,7 +16,9 @@ const contentTypes = {
   '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.png': 'image/png',
   '.svg': 'image/svg+xml',
-  '.map': 'application/json; charset=utf-8'
+  '.map': 'application/json; charset=utf-8',
+  '.ogg': 'audio/ogg',
+  '.wav': 'audio/wav'
 };
 
 const server = http.createServer(async (req, res) => {
@@ -45,5 +47,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(port, '0.0.0.0', () => {
-  console.log(`Deep Rhythm Party: http://localhost:${port}`);
+  console.log(`Rhythm Variety v9.0.1: http://localhost:${port}`);
 });

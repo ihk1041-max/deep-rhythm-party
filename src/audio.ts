@@ -1,10 +1,50 @@
-import type { GameId, Judge, VoiceSample } from './types.js';
+import type {
+  CueEvent,
+  GameDefinition,
+  InputAction,
+  Judge,
+  MusicStyle,
+  SceneKind,
+  VoiceSample
+} from './types.js';
 
 type BusKind = 'music' | 'sfx';
-
 type Wave = OscillatorType;
 
 const midiToHz = (midi: number): number => 440 * 2 ** ((midi - 69) / 12);
+
+interface StyleConfig {
+  roots: readonly number[];
+  chord: 'major' | 'minor' | 'mixed';
+  melody: readonly number[];
+  melodyOffsets: readonly number[];
+  bassOffsets: readonly number[];
+  wave: Wave;
+  kick: number;
+  snare: number;
+  hat: number;
+  pad: number;
+  melodyGain: number;
+  swing?: number;
+}
+
+const STYLES: Record<MusicStyle, StyleConfig> = {
+  bakery: { roots:[48,53,55,50], chord:'major', melody:[72,76,79,81,79,76,74,77], melodyOffsets:[0,.75,1.5,2.5,3.25], bassOffsets:[0,2], wave:'triangle', kick:.9,snare:.55,hat:.36,pad:.032,melodyGain:.034 },
+  space: { roots:[41,46,43,48], chord:'minor', melody:[72,75,79,82,79,77,75,70], melodyOffsets:[.5,1.5,2.75,3.5], bassOffsets:[0,1.5,3], wave:'sine', kick:.72,snare:.42,hat:.25,pad:.044,melodyGain:.03 },
+  frog: { roots:[43,47,50,45], chord:'major', melody:[67,69,72,74,72,76,74,69], melodyOffsets:[0,.5,1.5,2,3], bassOffsets:[0,2.5], wave:'square', kick:.78,snare:.6,hat:.42,pad:.024,melodyGain:.025, swing:.06 },
+  dream: { roots:[48,45,53,50], chord:'major', melody:[72,74,76,79,76,74,71,72], melodyOffsets:[0,1.5,3], bassOffsets:[0,2], wave:'sine', kick:.44,snare:.25,hat:.15,pad:.05,melodyGain:.02 },
+  penguin: { roots:[50,55,52,57], chord:'major', melody:[74,78,81,83,81,78,76,79], melodyOffsets:[0,.5,1.5,2.5,3.5], bassOffsets:[0,1,2,3], wave:'triangle', kick:.88,snare:.62,hat:.44,pad:.027,melodyGain:.03 },
+  robot: { roots:[38,41,43,36], chord:'minor', melody:[62,65,67,70,67,65,60,62], melodyOffsets:[0,1,2.5,3], bassOffsets:[0,1.5,2.5], wave:'sawtooth', kick:.98,snare:.7,hat:.5,pad:.02,melodyGain:.022 },
+  moon: { roots:[45,50,48,43], chord:'mixed', melody:[69,74,76,81,79,76,74,71], melodyOffsets:[.5,1.5,2.5,3.5], bassOffsets:[0,2], wave:'sine', kick:.68,snare:.5,hat:.34,pad:.038,melodyGain:.026 },
+  chorus: { roots:[48,52,53,55], chord:'major', melody:[72,76,79,84,81,79,76,74], melodyOffsets:[0,1,2,3], bassOffsets:[0,2], wave:'triangle', kick:.62,snare:.45,hat:.22,pad:.052,melodyGain:.028 },
+  mole: { roots:[43,46,48,41], chord:'minor', melody:[67,70,72,75,72,70,65,67], melodyOffsets:[0,.75,1.5,2.25,3.25], bassOffsets:[0,2.5], wave:'triangle', kick:.8,snare:.62,hat:.34,pad:.028,melodyGain:.027 },
+  dance: { roots:[45,48,50,52], chord:'minor', melody:[69,72,76,74,77,81,79,76], melodyOffsets:[0,.5,1,1.5,2.5,3,3.5], bassOffsets:[0,1,2,3], wave:'square', kick:1,snare:.74,hat:.56,pad:.022,melodyGain:.024 },
+  conference: { roots:[48,53,50,55], chord:'major', melody:[72,76,74,79,76,81,79,74], melodyOffsets:[0,1.5,2,3.5], bassOffsets:[0,2], wave:'triangle', kick:.7,snare:.58,hat:.3,pad:.034,melodyGain:.025 },
+  ninja: { roots:[40,45,43,38], chord:'minor', melody:[64,67,71,72,71,67,66,62], melodyOffsets:[0,.5,1.5,2.75,3.5], bassOffsets:[0,2], wave:'sawtooth', kick:.82,snare:.7,hat:.48,pad:.018,melodyGain:.02 },
+  'remix-a': { roots:[48,43,53,45], chord:'mixed', melody:[72,76,79,74,81,77,83,79], melodyOffsets:[0,.5,1.5,2,3,3.5], bassOffsets:[0,1.5,2.5], wave:'triangle', kick:.96,snare:.7,hat:.5,pad:.028,melodyGain:.03 },
+  'remix-b': { roots:[50,43,46,53], chord:'mixed', melody:[74,77,81,79,83,81,76,78], melodyOffsets:[0,.5,1,2,2.5,3.5], bassOffsets:[0,1,2.5], wave:'square', kick:1,snare:.76,hat:.56,pad:.025,melodyGain:.028 },
+  'remix-c': { roots:[45,50,41,48], chord:'mixed', melody:[69,72,76,79,83,81,77,74], melodyOffsets:[0,.5,1,1.5,2.5,3,3.5], bassOffsets:[0,1.5,2,3], wave:'sawtooth', kick:1,snare:.82,hat:.62,pad:.022,melodyGain:.026 }
+};
 
 export class AudioEngine {
   private context: AudioContext | null = null;
@@ -15,6 +55,8 @@ export class AudioEngine {
   private musicVolume = 0.72;
   private sfxVolume = 0.9;
   private voiceBuffers = new Map<VoiceSample, AudioBuffer>();
+  private externalBuffers = new Map<string, AudioBuffer>();
+  private failedExternal = new Set<string>();
   private voiceLoad: Promise<void> | null = null;
 
   async unlock(): Promise<void> {
@@ -31,11 +73,28 @@ export class AudioEngine {
       this.master.connect(this.context.destination);
     }
 
-    if (this.context.state !== 'running') {
-      await this.context.resume();
-    }
+    if (this.context.state !== 'running') await this.context.resume();
     if (!this.voiceLoad) this.voiceLoad = this.loadVoiceSamples();
     await this.voiceLoad;
+  }
+
+  async prepareGame(definition: GameDefinition, allowExternal: boolean): Promise<boolean> {
+    if (!allowExternal || !definition.externalMusic || !this.context) return false;
+    const file = definition.externalMusic.file;
+    if (this.externalBuffers.has(file)) return true;
+    if (this.failedExternal.has(file)) return false;
+    try {
+      const response = await fetch(`./${file}`, { cache: 'no-store' });
+      if (!response.ok) throw new Error(`${response.status}`);
+      const data = await response.arrayBuffer();
+      const decoded = await this.context.decodeAudioData(data);
+      this.externalBuffers.set(file, decoded);
+      return true;
+    } catch (error) {
+      this.failedExternal.add(file);
+      console.info(`CC0 music not installed (${file}); using built-in synchronized music.`, error);
+      return false;
+    }
   }
 
   now(): number {
@@ -59,89 +118,177 @@ export class AudioEngine {
   }
 
   scheduleCount(time: number, strong = false): void {
-    this.tone('sfx', time, strong ? 980 : 700, 0.055, strong ? 0.15 : 0.09, 'triangle');
+    this.tone('sfx', time, strong ? 1040 : 720, 0.055, strong ? 0.14 : 0.08, 'triangle');
   }
 
-  scheduleSong(gameId: GameId, startTime: number, bpm: number, endBeat: number): void {
-    const spb = 60 / bpm;
-    if (gameId === 'mendako-pop' || gameId === 'robot-stamp') {
-      this.scheduleMendakoSong(startTime, spb, endBeat);
-    } else if (gameId === 'crab-clap' || gameId === 'cat-dj') {
-      this.scheduleCrabSong(startTime, spb, endBeat);
-    } else if (gameId === 'fugu-puku' || gameId === 'ninja-mochi') {
-      this.scheduleFuguSong(startTime, spb, endBeat);
-    } else {
-      this.scheduleRemixSong(startTime, spb, endBeat);
+  scheduleSong(definition: GameDefinition, startTime: number, endBeat: number, useExternal: boolean): void {
+    const spb = 60 / definition.bpm;
+    if (this.context && this.musicBus) {
+      this.musicBus.gain.cancelScheduledValues(this.context.currentTime);
+      this.musicBus.gain.setValueAtTime(this.musicVolume, this.context.currentTime);
+      this.scheduleCueDucking(definition, startTime, spb);
+    }
+    if (useExternal && definition.externalMusic) {
+      const buffer = this.externalBuffers.get(definition.externalMusic.file);
+      if (buffer && this.context && this.musicBus) {
+        const source = this.context.createBufferSource();
+        const gain = this.context.createGain();
+        source.buffer = buffer;
+        source.loop = true;
+        gain.gain.value = definition.externalMusic.gain ?? 0.62;
+        source.connect(gain);
+        gain.connect(this.musicBus);
+        this.registerSource(source);
+        source.start(startTime + 4 * spb + (definition.externalMusic.offsetSec ?? 0));
+        source.stop(startTime + endBeat * spb + 0.1);
+        return;
+      }
+    }
+    this.scheduleSynthSong(definition, startTime, spb, endBeat);
+  }
+
+  private scheduleCueDucking(definition: GameDefinition, startTime: number, spb: number): void {
+    if (!this.musicBus) return;
+    const important = new Set<CueEvent['kind']>([
+      'ding','charge','frog-call','alarm','dish-left','dish-right','bolt-short','bolt-long',
+      'serve','lob','sing-short','sing-long','knock','dance-left','dance-right',
+      'question-one','question-two','question-three','question-hold','camera-ready','switch'
+    ]);
+    for (const cue of definition.cues) {
+      if (!important.has(cue.kind)) continue;
+      const t = startTime + cue.beat * spb;
+      const pre = Math.max(startTime, t - .12);
+      const low = this.musicVolume * (cue.kind === 'switch' ? .48 : .66);
+      this.musicBus.gain.setValueAtTime(this.musicVolume, pre);
+      this.musicBus.gain.linearRampToValueAtTime(low, t);
+      this.musicBus.gain.linearRampToValueAtTime(this.musicVolume, t + Math.min(.32, spb * .7));
     }
   }
 
-  scheduleCue(gameId: GameId, time: number, cueIndex: number): void {
-    if (gameId === 'deep-remix') {
-      const mode = cueIndex % 3;
-      if (mode === 0) this.scheduleCue('mendako-pop', time, cueIndex);
-      else if (mode === 1) this.scheduleCue('crab-clap', time, cueIndex);
-      else this.scheduleCue('fugu-puku', time, cueIndex);
-      return;
+  scheduleCue(cue: CueEvent, time: number, index: number, scene: SceneKind): void {
+    switch (cue.kind) {
+      case 'ding':
+        this.tone('sfx', time, midiToHz(cue.pitch ?? 84), .09, .075, 'sine');
+        this.tone('sfx', time + .018, midiToHz((cue.pitch ?? 84) + 7), .08, .035, 'triangle');
+        break;
+      case 'charge':
+        this.riser(time, Math.max(.18, (cue.durationBeats ?? 2) * .14), .075);
+        break;
+      case 'frog-call':
+        this.tone('sfx', time, 210 + (index % 3) * 35, .11, .09, 'square');
+        this.tone('sfx', time + .045, 145 + (index % 2) * 25, .1, .055, 'triangle');
+        break;
+      case 'alarm':
+        this.alarm(time, .12);
+        break;
+      case 'decoy-phone':
+        this.tone('sfx', time, 520, .12, .065, 'sine');
+        this.tone('sfx', time + .14, 660, .12, .06, 'sine');
+        break;
+      case 'decoy-bird':
+        this.tone('sfx', time, 1280, .055, .045, 'sine');
+        this.tone('sfx', time + .07, 1560, .05, .035, 'sine');
+        break;
+      case 'dish-left':
+        this.clack(time, -.75, .08);
+        break;
+      case 'dish-right':
+        this.clack(time, .75, .08);
+        break;
+      case 'bolt-short':
+      case 'bolt-long':
+        this.tone('sfx', time, cue.kind === 'bolt-short' ? 310 : 230, .08, .07, 'square');
+        this.tone('sfx', time + .045, cue.kind === 'bolt-short' ? 430 : 350, .07, .045, 'sawtooth');
+        break;
+      case 'serve':
+        this.tone('sfx', time, 620, .07, .08, 'triangle');
+        this.noise('sfx', time, .045, .035, 1600, 'highpass');
+        break;
+      case 'lob':
+        this.tone('sfx', time, 440, .22, .065, 'sine', .01, .18);
+        this.tone('sfx', time + .08, 660, .18, .035, 'sine', .01, .15);
+        break;
+      case 'sing-short':
+      case 'sing-long':
+        this.tone('sfx', time, midiToHz(72 + (index % 3) * 2), Math.max(.18, (cue.durationBeats ?? 2) * .18), .052, 'sine', .04, .18);
+        break;
+      case 'knock':
+        this.tone('sfx', time, 150, .045, .075, 'triangle');
+        this.noise('sfx', time, .035, .035, 520, 'lowpass');
+        break;
+      case 'dance-left':
+        this.clack(time, -.8, .08);
+        this.tone('sfx', time, 280, .05, .045, 'square', .005, .04, -.6);
+        break;
+      case 'dance-right':
+        this.clack(time, .8, .08);
+        this.tone('sfx', time, 360, .05, .045, 'square', .005, .04, .6);
+        break;
+      case 'question-one':
+        this.scheduleVoice('hey', time, .44);
+        this.tone('sfx', time + .18, 720, .07, .04, 'triangle');
+        break;
+      case 'question-two':
+        this.scheduleVoice('hey', time, .42);
+        this.clap('sfx', time + .15, .05, .045);
+        this.clap('sfx', time + .27, .05, .04);
+        break;
+      case 'question-three':
+        this.scheduleVoice('hey', time, .42);
+        this.clap('sfx', time + .13, .045, .044);
+        this.clap('sfx', time + .24, .045, .04);
+        this.clap('sfx', time + .35, .045, .037);
+        this.tone('sfx', time + .03, 880, .09, .035, 'triangle');
+        break;
+      case 'question-hold':
+        this.scheduleVoice('go', time, .42);
+        this.riser(time + .12, .28, .045);
+        break;
+      case 'camera-ready':
+        this.noise('sfx', time, .12, .045, 1800, 'bandpass');
+        this.tone('sfx', time + .08, 420, .07, .035, 'triangle');
+        break;
+      case 'camera-decoy':
+        this.noise('sfx', time, .16, .03, 3600, 'highpass');
+        break;
+      case 'switch':
+        this.scheduleVoice('yeah', time, .64);
+        this.finale(time + .06, 60, .07);
+        break;
+      default:
+        this.tone('sfx', time, 760, .07, .05, 'triangle');
+        break;
     }
-    if (gameId === 'crab-clap' || gameId === 'cat-dj') {
-      this.clap('sfx', time, 0.07, 0.115);
-      const notes = [72, 74, 76, 79];
-      this.tone('sfx', time, midiToHz(notes[cueIndex % notes.length] ?? 72), 0.08, 0.05, 'square');
-      return;
-    }
-
-    if (gameId === 'fugu-puku' || gameId === 'ninja-mochi') {
-      const notes = [67, 71, 74, 76];
-      const note = notes[cueIndex % notes.length] ?? 67;
-      this.tone('sfx', time, midiToHz(note), 0.11, 0.075, 'sine');
-      this.tone('sfx', time + 0.028, midiToHz(note + 7), 0.07, 0.035, 'triangle');
-      return;
-    }
-
-    const notes = [76, 79, 81, 83];
-    const note = notes[cueIndex % notes.length] ?? 76;
-    this.tone('sfx', time, midiToHz(note), 0.10, 0.065, 'sine');
-    this.tone('sfx', time + 0.035, midiToHz(note + 12), 0.06, 0.03, 'sine');
   }
 
-  playHit(judge: Judge, gameId: GameId, beat: number): void {
+  playInput(judge: Judge, action: InputAction, scene: SceneKind, beat: number): void {
     if (!this.context) return;
     const now = this.context.currentTime;
-
     if (judge === 'MISS') {
-      this.tone('sfx', now, 142, 0.13, 0.07, 'sawtooth');
-      this.tone('sfx', now + 0.025, 120, 0.08, 0.035, 'square');
+      this.tone('sfx', now, 148, .13, .07, 'sawtooth');
+      this.tone('sfx', now + .024, 112, .09, .035, 'square');
       return;
     }
 
-    const quality = judge === 'PERFECT' ? 1 : judge === 'GREAT' ? 0.82 : 0.64;
-    if (gameId === 'deep-remix') {
-      const phase = Math.floor(beat / 12) % 3;
-      this.playHit(judge, phase === 0 ? 'mendako-pop' : phase === 1 ? 'crab-clap' : 'fugu-puku', beat);
-      return;
-    }
-    if (gameId === 'crab-clap' || gameId === 'cat-dj') {
-      this.clap('sfx', now, 0.08, 0.145 * quality);
-      this.tone('sfx', now, midiToHz(72 + (Math.round(beat) % 5)), 0.065, 0.045 * quality, 'square');
+    const quality = judge === 'PERFECT' ? 1 : judge === 'GREAT' ? .82 : .64;
+    const pan = action === 'left' ? -.7 : action === 'right' ? .7 : 0;
+
+    if (action === 'release') {
+      this.tone('sfx', now, scene === 'space' ? 920 : 720, .09, .095 * quality, 'triangle', .004, .065, pan);
+      this.noise('sfx', now + .02, .055, .035 * quality, 2200, 'highpass', pan);
       return;
     }
 
-    if (gameId === 'fugu-puku' || gameId === 'ninja-mochi') {
-      const scale = [67, 69, 71, 74, 76];
-      const note = scale[Math.abs(Math.round(beat * 2)) % scale.length] ?? 67;
-      this.tone('sfx', now, midiToHz(note), 0.12, 0.105 * quality, 'sine');
-      this.tone('sfx', now + 0.04, midiToHz(note + 12), 0.08, 0.055 * quality, 'triangle');
-      return;
-    }
-
-    const scale = [72, 74, 76, 79, 81];
-    const note = scale[Math.abs(Math.round(beat * 2)) % scale.length] ?? 72;
-    this.tone('sfx', now, midiToHz(note), 0.10, 0.10 * quality, 'sine');
-    this.tone('sfx', now + 0.03, midiToHz(note + 12), 0.07, 0.05 * quality, 'triangle');
+    const sceneBase: Record<SceneKind, number> = {
+      bakery: 760, space: 560, frog: 360, bedroom: 820, penguin: 680, robot: 260,
+      moon: 620, chorus: 740, mole: 180, dance: 520, conference: 700, ninja: 900
+    };
+    const base = sceneBase[scene] + ((Math.round(beat * 2) % 4) * 28);
+    this.tone('sfx', now, base, .08, .085 * quality, scene === 'robot' ? 'square' : 'triangle', .005, .055, pan);
+    if (judge === 'PERFECT') this.tone('sfx', now + .035, base * 1.5, .065, .04, 'sine', .003, .045, pan);
   }
 
-
-  scheduleVoice(sample: VoiceSample, time: number, gainValue = 0.68): void {
+  scheduleVoice(sample: VoiceSample, time: number, gainValue = .66): void {
     if (!this.context) return;
     const buffer = this.voiceBuffers.get(sample);
     const bus = this.getBus('sfx');
@@ -156,15 +303,21 @@ export class AudioEngine {
     source.start(time);
   }
 
+  stopAll(): void {
+    for (const source of this.active) {
+      try { source.stop(); } catch { /* already stopped */ }
+    }
+    this.active.clear();
+  }
+
   private async loadVoiceSamples(): Promise<void> {
     if (!this.context) return;
-    const samples: VoiceSample[] = ['hey', 'go', 'yeah'];
+    const samples: VoiceSample[] = ['hey','go','yeah'];
     await Promise.all(samples.map(async (name) => {
       try {
         const response = await fetch(`./audio/${name}.wav`);
         if (!response.ok) return;
-        const data = await response.arrayBuffer();
-        const decoded = await this.context!.decodeAudioData(data);
+        const decoded = await this.context!.decodeAudioData(await response.arrayBuffer());
         this.voiceBuffers.set(name, decoded);
       } catch (error) {
         console.warn(`Voice sample load failed: ${name}`, error);
@@ -172,150 +325,157 @@ export class AudioEngine {
     }));
   }
 
-  stopAll(): void {
-    for (const source of this.active) {
-      try {
-        source.stop();
-      } catch {
-        // Already stopped.
-      }
+  private scheduleSynthSong(definition: GameDefinition, start: number, spb: number, endBeat: number): void {
+    const config = STYLES[definition.musicStyle];
+    this.scheduleGroove(start, spb, endBeat, config);
+
+    // Strong section boundaries are musical events, not just UI labels.
+    for (const section of definition.sections) {
+      if (section.startBeat <= 4 || section.startBeat >= endBeat - 1) continue;
+      const time = start + section.startBeat * spb;
+      this.scheduleSectionTurn(time, spb, config, section.startBeat);
     }
-    this.active.clear();
-  }
 
-  private scheduleMendakoSong(start: number, spb: number, endBeat: number): void {
-    const roots = [48, 45, 41, 43];
-    const chordTypes = ['major', 'minor', 'major', 'major'] as const;
-    const melody = [72, 76, 79, 76, 74, 77, 81, 79];
+    // Regular fills make the backing track feel composed rather than looped.
+    for (let fillBeat = 15.5; fillBeat < endBeat - 2; fillBeat += 16) {
+      this.scheduleFill(start + fillBeat * spb, spb, config);
+    }
 
-    this.scheduleGroove(start, spb, endBeat, 0.82, 0.58, 0.34, 'mendako-pop');
     for (let beat = 4, bar = 0; beat < endBeat; beat += 4, bar += 1) {
-      const index = bar % roots.length;
-      const root = roots[index] ?? 48;
-      const chord = chordTypes[index] ?? 'major';
-      this.padChord(start + beat * spb, root, chord, spb * 3.7, 0.032);
-      this.bass(start + beat * spb, root, spb * 0.55, 0.07);
-      this.bass(start + (beat + 2) * spb, root + 7, spb * 0.48, 0.052);
+      const root = config.roots[bar % config.roots.length] ?? config.roots[0] ?? 48;
+      const chordKind = config.chord === 'mixed' ? (bar % 3 === 1 ? 'minor' : 'major') : config.chord;
+      const finalPush = beat >= endBeat - 12;
+      const midBreak = definition.sections.some((section) => Math.abs(section.startBeat - beat) < .01 && beat > 4);
+      const padGain = config.pad * (midBreak ? .72 : finalPush ? 1.28 : 1);
+      this.padChord(start + beat * spb, root, chordKind, spb * 3.65, padGain);
+
+      for (const offset of config.bassOffsets) {
+        const note = root + (offset >= 2 ? 7 : 0);
+        this.bass(start + (beat + offset) * spb, note, spb * .46, (.055 + config.kick * .015) * (finalPush ? 1.12 : 1));
+      }
 
       if (beat >= 8) {
-        for (let step = 0; step < 4; step += 1) {
-          const note = melody[(bar * 2 + step) % melody.length] ?? 72;
-          this.pluck(start + (beat + step) * spb, note, spb * 0.32, 0.032);
-        }
+        config.melodyOffsets.forEach((offset, i) => {
+          const note = config.melody[(bar * 2 + i) % config.melody.length] ?? 72;
+          const swing = config.swing && (i % 2 === 1) ? config.swing : 0;
+          this.pluck(start + (beat + offset + swing) * spb, note, spb * .22, config.melodyGain * (finalPush ? 1.25 : 1), config.wave);
+        });
       }
+
+      this.scheduleGameMotif(this.getSceneAtBeat(definition, beat), start + beat * spb, spb, bar, finalPush);
     }
-    this.finale(start + endBeat * spb, 60, 0.09);
+
+    // Last bars become audibly busier so the player can feel the finale coming.
+    for (let beat = Math.max(4, endBeat - 8); beat < endBeat; beat += .25) {
+      const strong = Math.abs(beat - Math.round(beat)) < .001;
+      this.hat(start + beat * spb, strong ? .03 * config.hat : .013 * config.hat, beat % 1 > .7);
+    }
+    this.finale(start + endBeat * spb, (config.roots[0] ?? 48) + 12, .095);
   }
 
-  private scheduleCrabSong(start: number, spb: number, endBeat: number): void {
-    const roots = [38, 41, 43, 45];
-    const melody = [62, 65, 69, 67, 65, 70, 69, 74];
-
-    this.scheduleGroove(start, spb, endBeat, 0.9, 0.74, 0.42, 'crab-clap');
-    for (let beat = 4, bar = 0; beat < endBeat; beat += 4, bar += 1) {
-      const root = roots[bar % roots.length] ?? 38;
-      this.padChord(start + beat * spb, root, bar % 2 === 0 ? 'minor' : 'major', spb * 3.45, 0.025);
-      for (const offset of [0, 1.5, 2.5]) {
-        this.bass(start + (beat + offset) * spb, root + (offset > 2 ? 7 : 0), spb * 0.34, 0.075);
-      }
-      if (beat >= 8) {
-        for (const offset of [0.5, 2, 3.5]) {
-          const note = melody[(bar + Math.round(offset * 2)) % melody.length] ?? 62;
-          this.pluck(start + (beat + offset) * spb, note + 12, spb * 0.18, 0.027, 'square');
-        }
-      }
-    }
-    this.finale(start + endBeat * spb, 50, 0.095);
+  private scheduleSectionTurn(time: number, spb: number, config: StyleConfig, beat: number): void {
+    const root = (config.roots[Math.floor(beat / 4) % config.roots.length] ?? config.roots[0] ?? 48) + 12;
+    this.noise('music', time - .08 * spb, .16, .025 * config.hat, 4200, 'highpass');
+    this.kick(time, .065 * config.kick);
+    this.pluck(time, root + 12, spb * .22, config.melodyGain * 1.8, config.wave);
+    this.pluck(time + .5 * spb, root + 19, spb * .16, config.melodyGain * 1.15, config.wave);
   }
 
-  private scheduleFuguSong(start: number, spb: number, endBeat: number): void {
-    const roots = [43, 47, 40, 45];
-    const melody = [67, 71, 74, 76, 74, 71, 69, 74];
-
-    this.scheduleGroove(start, spb, endBeat, 0.76, 0.48, 0.3, 'fugu-puku');
-    for (let beat = 4, bar = 0; beat < endBeat; beat += 4, bar += 1) {
-      const root = roots[bar % roots.length] ?? 43;
-      this.padChord(start + beat * spb, root, 'major', spb * 3.8, 0.035);
-      for (let step = 0; step < 4; step += 1) {
-        const bassNote = step === 3 ? root + 7 : root;
-        this.bass(start + (beat + step) * spb, bassNote, spb * 0.48, 0.058);
-      }
-      if (beat >= 8) {
-        for (const offset of [0, 1.5, 2.5]) {
-          const note = melody[(bar * 2 + Math.floor(offset)) % melody.length] ?? 67;
-          this.pluck(start + (beat + offset) * spb, note, spb * 0.3, 0.034, 'sine');
-        }
-      }
+  private getSceneAtBeat(definition: GameDefinition, beat: number): SceneKind {
+    let scene = definition.scene;
+    for (const section of definition.sections) {
+      if (section.startBeat > beat) break;
+      if (section.scene) scene = section.scene;
     }
-    this.finale(start + endBeat * spb, 55, 0.09);
+    return scene;
   }
 
-  private scheduleGroove(
-    start: number,
-    spb: number,
-    endBeat: number,
-    kickGain: number,
-    snareGain: number,
-    hatGain: number,
-    gameId: GameId
-  ): void {
-    for (let beat = 4; beat < endBeat; beat += 0.5) {
+  private scheduleGameMotif(scene: SceneKind, time: number, spb: number, bar: number, finalPush: boolean): void {
+    const g = finalPush ? 1.2 : 1;
+    switch (scene) {
+      case 'bakery':
+        this.tone('music', time + 3.5 * spb, 1180, .045, .018 * g, 'sine');
+        break;
+      case 'space':
+        [0,.5,1,1.5].forEach((o,i) => this.pluck(time + o * spb, 72 + i * 3 + (bar % 2) * 2, spb * .16, .014 * g, 'sine'));
+        break;
+      case 'frog':
+        if (bar % 2 === 0) { this.tone('music', time + 2.5*spb, 330, .09, .017*g, 'square'); this.tone('music', time + 3*spb, 245, .09, .014*g, 'triangle'); }
+        break;
+      case 'bedroom':
+        if (bar % 2 === 0) this.pluck(time + 2 * spb, 84, spb * .38, .014 * g, 'sine');
+        break;
+      case 'penguin':
+        this.tone('music', time + .5 * spb, 420, .045, .016*g, 'triangle', .004, .04, -.55); this.tone('music', time + 2.5 * spb, 520, .045, .016*g, 'triangle', .004, .04, .55);
+        break;
+      case 'robot':
+        for (let o=0;o<4;o+=1) this.tone('music', time + (o+.5)*spb, 118 + (o%2)*32, .035, .013*g, 'square');
+        break;
+      case 'moon':
+        this.pluck(time + 1.5 * spb, 81 + (bar%3)*2, spb*.3, .016*g, 'sine');
+        this.pluck(time + 3.25 * spb, 88 + (bar%2)*2, spb*.24, .012*g, 'sine');
+        break;
+      case 'chorus':
+        this.tone('music', time + 3*spb, midiToHz(76), spb*.55, .012*g, 'sine', .06, .22);
+        this.tone('music', time + 3*spb, midiToHz(79), spb*.55, .01*g, 'sine', .06, .22);
+        break;
+      case 'mole':
+        this.tone('music', time + .75*spb, 170, .04, .018*g, 'triangle');
+        this.tone('music', time + 2.75*spb, 190, .04, .018*g, 'triangle');
+        break;
+      case 'dance':
+        [0.5,1.5,2.5,3.5].forEach((o) => this.pluck(time + o*spb, 84, spb*.12, .014*g, 'square'));
+        break;
+      case 'conference':
+        if (bar % 2 === 0) { this.pluck(time + 1*spb, 79, spb*.16, .018*g, 'triangle'); this.pluck(time + 1.5*spb, 83, spb*.16, .014*g, 'triangle'); }
+        break;
+      case 'ninja':
+        this.pluck(time + .25*spb, 88 - (bar%3)*2, spb*.13, .014*g, 'triangle');
+        this.pluck(time + 2.75*spb, 83 - (bar%2)*2, spb*.13, .011*g, 'triangle');
+        break;
+    }
+  }
+
+  private scheduleGroove(start: number, spb: number, endBeat: number, config: StyleConfig): void {
+    for (let beat = 4; beat < endBeat; beat += .5) {
       const step = Math.round(beat * 2);
-      const wholeBeat = Math.abs(beat - Math.round(beat)) < 0.001;
-      const barPosition = ((beat % 4) + 4) % 4;
-
-      if (wholeBeat) {
-        if (barPosition === 0 || barPosition === 2 || (gameId === 'crab-clap' && barPosition === 3)) {
-          this.kick(start + beat * spb, 0.07 * kickGain);
-        }
-        if (barPosition === 1 || barPosition === 3) {
-          this.snare(start + beat * spb, 0.065 * snareGain);
-        }
+      const whole = Math.abs(beat - Math.round(beat)) < .001;
+      const pos = ((beat % 4) + 4) % 4;
+      if (whole) {
+        if (pos === 0 || pos === 2) this.kick(start + beat * spb, .072 * config.kick);
+        if (pos === 1 || pos === 3) this.snare(start + beat * spb, .064 * config.snare);
       }
-
-      const hatLevel = (step % 2 === 0 ? 0.025 : 0.017) * hatGain;
-      this.hat(start + beat * spb, hatLevel, step % 4 === 3);
+      this.hat(start + beat * spb, (step % 2 === 0 ? .026 : .017) * config.hat, step % 4 === 3);
     }
   }
 
-
-  private scheduleRemixSong(start: number, spb: number, endBeat: number): void {
-    const roots = [48, 38, 43, 45, 41, 50];
-    this.scheduleGroove(start, spb, endBeat, 0.92, 0.72, 0.42, 'deep-remix');
-    for (let beat = 4, bar = 0; beat < endBeat; beat += 4, bar += 1) {
-      const root = roots[bar % roots.length] ?? 48;
-      const phase = Math.floor(beat / 12) % 3;
-      this.padChord(start + beat * spb, root, phase === 1 ? 'minor' : 'major', spb * 3.55, 0.03);
-      this.bass(start + beat * spb, root, spb * 0.48, 0.072);
-      this.bass(start + (beat + 2) * spb, root + 7, spb * 0.4, 0.055);
-      const pattern = phase === 0 ? [0, 1, 2.5, 3] : phase === 1 ? [0.5, 1.5, 2, 3.5] : [0, 1.5, 2.5, 3.5];
-      for (let i = 0; i < pattern.length; i += 1) {
-        const off = pattern[i] ?? 0;
-        this.pluck(start + (beat + off) * spb, root + 24 + ((bar + i * 2) % 7), spb * 0.22, 0.032, phase === 1 ? 'square' : 'triangle');
-      }
-    }
-    this.finale(start + endBeat * spb, 60, 0.11);
+  private scheduleFill(time: number, spb: number, config: StyleConfig): void {
+    const steps = [0, .25, .5, .75];
+    steps.forEach((offset, index) => {
+      this.snare(time + offset * spb, (.022 + index * .008) * config.snare);
+      this.hat(time + offset * spb, (.02 + index * .006) * config.hat, index === steps.length - 1);
+    });
+    const root = config.roots[0] ?? 48;
+    this.pluck(time + .75 * spb, root + 24, spb * .18, config.melodyGain * 1.35, config.wave);
   }
 
   private finale(time: number, rootMidi: number, gain: number): void {
-    this.kick(time, gain * 0.8);
-    this.padChord(time, rootMidi, 'major', 0.7, gain * 0.5);
-    this.pluck(time, rootMidi + 24, 0.35, gain * 0.75);
+    this.kick(time, gain * .8);
+    this.padChord(time, rootMidi, 'major', .7, gain * .45);
+    this.pluck(time, rootMidi + 24, .35, gain * .72);
   }
 
   private padChord(time: number, root: number, kind: 'major' | 'minor', duration: number, gain: number): void {
-    const intervals = kind === 'minor' ? [0, 3, 7] : [0, 4, 7];
-    for (const interval of intervals) {
-      this.tone('music', time, midiToHz(root + 12 + interval), duration, gain, 'triangle', 0.08, 0.32);
-    }
+    const intervals = kind === 'minor' ? [0,3,7] : [0,4,7];
+    for (const interval of intervals) this.tone('music', time, midiToHz(root + 12 + interval), duration, gain, 'triangle', .08, .32);
   }
 
   private bass(time: number, midi: number, duration: number, gain: number): void {
-    this.tone('music', time, midiToHz(midi), duration, gain, 'triangle', 0.012, 0.12);
+    this.tone('music', time, midiToHz(midi), duration, gain, 'triangle', .012, .12);
   }
 
   private pluck(time: number, midi: number, duration: number, gain: number, wave: Wave = 'triangle'): void {
-    this.tone('music', time, midiToHz(midi), duration, gain, wave, 0.006, 0.07);
+    this.tone('music', time, midiToHz(midi), duration, gain, wave, .006, .07);
   }
 
   private kick(time: number, gainValue: number): void {
@@ -325,29 +485,53 @@ export class AudioEngine {
     const osc = this.context.createOscillator();
     const gain = this.context.createGain();
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(125, time);
-    osc.frequency.exponentialRampToValueAtTime(46, time + 0.11);
-    gain.gain.setValueAtTime(Math.max(0.0001, gainValue), time);
-    gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.13);
-    osc.connect(gain);
-    gain.connect(bus);
-    this.registerSource(osc);
-    osc.start(time);
-    osc.stop(time + 0.14);
+    osc.frequency.setValueAtTime(128, time);
+    osc.frequency.exponentialRampToValueAtTime(46, time + .11);
+    gain.gain.setValueAtTime(Math.max(.0001, gainValue), time);
+    gain.gain.exponentialRampToValueAtTime(.0001, time + .13);
+    osc.connect(gain); gain.connect(bus); this.registerSource(osc);
+    osc.start(time); osc.stop(time + .14);
   }
 
   private snare(time: number, gainValue: number): void {
-    this.noise('music', time, 0.09, gainValue, 1100, 'highpass');
-    this.tone('music', time, 190, 0.07, gainValue * 0.3, 'triangle');
+    this.noise('music', time, .09, gainValue, 1100, 'highpass');
+    this.tone('music', time, 190, .07, gainValue * .28, 'triangle');
   }
 
   private hat(time: number, gainValue: number, open: boolean): void {
-    this.noise('music', time, open ? 0.07 : 0.028, gainValue, 4800, 'highpass');
+    this.noise('music', time, open ? .07 : .028, gainValue, 4800, 'highpass');
+  }
+
+  private alarm(time: number, gainValue: number): void {
+    for (let i = 0; i < 4; i += 1) {
+      this.tone('sfx', time + i * .075, i % 2 === 0 ? 980 : 760, .06, gainValue, 'square');
+    }
+  }
+
+  private riser(time: number, duration: number, gainValue: number): void {
+    if (!this.context) return;
+    const bus = this.getBus('sfx');
+    if (!bus) return;
+    const osc = this.context.createOscillator();
+    const gain = this.context.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(180, time);
+    osc.frequency.exponentialRampToValueAtTime(720, time + duration);
+    gain.gain.setValueAtTime(.0001, time);
+    gain.gain.exponentialRampToValueAtTime(Math.max(.0001, gainValue), time + duration * .25);
+    gain.gain.exponentialRampToValueAtTime(.0001, time + duration);
+    osc.connect(gain); gain.connect(bus); this.registerSource(osc);
+    osc.start(time); osc.stop(time + duration + .02);
+  }
+
+  private clack(time: number, pan: number, gainValue: number): void {
+    this.noise('sfx', time, .045, gainValue, 1600, 'bandpass', pan);
+    this.tone('sfx', time, 420, .05, gainValue * .45, 'triangle', .004, .04, pan);
   }
 
   private clap(bus: BusKind, time: number, duration: number, gainValue: number): void {
     this.noise(bus, time, duration, gainValue, 950, 'highpass');
-    this.noise(bus, time + 0.018, duration * 0.65, gainValue * 0.6, 1300, 'bandpass');
+    this.noise(bus, time + .018, duration * .65, gainValue * .6, 1300, 'bandpass');
   }
 
   private noise(
@@ -356,35 +540,27 @@ export class AudioEngine {
     duration: number,
     gainValue: number,
     cutoff: number,
-    filterType: BiquadFilterType
+    filterType: BiquadFilterType,
+    pan = 0
   ): void {
     if (!this.context) return;
     const bus = this.getBus(busKind);
     if (!bus) return;
-
     const length = Math.max(1, Math.floor(this.context.sampleRate * duration));
     const buffer = this.context.createBuffer(1, length, this.context.sampleRate);
-    const channel = buffer.getChannelData(0);
-    for (let i = 0; i < channel.length; i += 1) {
-      const envelope = 1 - i / channel.length;
-      channel[i] = (Math.random() * 2 - 1) * envelope;
-    }
-
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < length; i += 1) data[i] = Math.random() * 2 - 1;
     const source = this.context.createBufferSource();
     const filter = this.context.createBiquadFilter();
     const gain = this.context.createGain();
+    const panner = this.context.createStereoPanner();
+    filter.type = filterType; filter.frequency.value = cutoff;
+    panner.pan.value = Math.min(1, Math.max(-1, pan));
+    gain.gain.setValueAtTime(Math.max(.0001, gainValue), time);
+    gain.gain.exponentialRampToValueAtTime(.0001, time + duration);
     source.buffer = buffer;
-    filter.type = filterType;
-    filter.frequency.value = cutoff;
-    filter.Q.value = filterType === 'bandpass' ? 0.8 : 0.35;
-    gain.gain.setValueAtTime(Math.max(0.0001, gainValue), time);
-    gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
-    source.connect(filter);
-    filter.connect(gain);
-    gain.connect(bus);
-    this.registerSource(source);
-    source.start(time);
-    source.stop(time + duration + 0.01);
+    source.connect(filter); filter.connect(gain); gain.connect(panner); panner.connect(bus);
+    this.registerSource(source); source.start(time); source.stop(time + duration + .01);
   }
 
   private tone(
@@ -393,28 +569,26 @@ export class AudioEngine {
     frequency: number,
     duration: number,
     gainValue: number,
-    type: Wave,
-    attack = 0.008,
-    release = 0.08
+    wave: Wave,
+    attack = .004,
+    release = .06,
+    pan = 0
   ): void {
     if (!this.context) return;
     const bus = this.getBus(busKind);
     if (!bus) return;
-
-    const oscillator = this.context.createOscillator();
+    const osc = this.context.createOscillator();
     const gain = this.context.createGain();
-    oscillator.type = type;
-    oscillator.frequency.setValueAtTime(frequency, time);
-    gain.gain.setValueAtTime(0.0001, time);
-    gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, gainValue), time + Math.min(attack, duration * 0.35));
-    gain.gain.setValueAtTime(Math.max(0.0001, gainValue * 0.7), Math.max(time + attack, time + duration - release));
-    gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
-
-    oscillator.connect(gain);
-    gain.connect(bus);
-    this.registerSource(oscillator);
-    oscillator.start(time);
-    oscillator.stop(time + duration + 0.02);
+    const panner = this.context.createStereoPanner();
+    osc.type = wave; osc.frequency.value = frequency;
+    panner.pan.value = Math.min(1, Math.max(-1, pan));
+    const peak = Math.max(.0001, gainValue);
+    gain.gain.setValueAtTime(.0001, time);
+    gain.gain.exponentialRampToValueAtTime(peak, time + Math.max(.001, attack));
+    gain.gain.setValueAtTime(peak, Math.max(time + attack, time + duration - release));
+    gain.gain.exponentialRampToValueAtTime(.0001, time + duration);
+    osc.connect(gain); gain.connect(panner); panner.connect(bus); this.registerSource(osc);
+    osc.start(time); osc.stop(time + duration + .02);
   }
 
   private getBus(kind: BusKind): GainNode | null {
@@ -423,9 +597,6 @@ export class AudioEngine {
 
   private registerSource(source: AudioScheduledSourceNode): void {
     this.active.add(source);
-    source.addEventListener('ended', () => {
-      this.active.delete(source);
-      source.disconnect();
-    });
+    source.addEventListener('ended', () => this.active.delete(source), { once: true });
   }
 }

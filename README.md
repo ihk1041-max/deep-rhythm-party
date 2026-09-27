@@ -1,22 +1,60 @@
-# リズムバラエティ v5
+# Rhythm Variety v9.0.1
 
-PWA / GitHub Pages向けのオリジナル・リズムミニゲーム集です。
-既存IPの画像・音楽・キャラクターは同梱しません。
+> v9.0.1 fixes panel visibility so the app starts on the title screen and Settings → Back works correctly.
 
-## v5 highlights
-- 7ステージ
-- 深海以外にロボ工場 / DJ / 忍者テーマを追加
-- コール&レスポンス、待ち、裏拍、フェイクを強化
-- AudioContextをマスタークロックとして使用
-- v1〜v4セーブデータ移行
-- PWA / オフライン対応
+# リズムバラエティ v9 — Classic Rhythm Style
 
-## Development
+スマホ/PWA向けのオリジナル・リズムミニゲーム集です。
+
+v9では、以前の「独自ミニゲームを増やす」方針から一段踏み込み、クラシックな1〜2ボタン型リズムゲームの設計を研究して、**合図 → 待つ → 返す / 拍を維持する / 長さを聞く / ボイスで操作を切り替える**というゲーム文法を12本のゲームへ明確に実装しました。
+
+Nintendo / Rhythm Heaven の画像・音楽・音声・台詞・ロゴ・ゲームデータは同梱していません。遊びの仕組みを研究し、題材・キャラクター・音・画面はオリジナルにしています。
+
+## 収録
+
+### WORLD 1 — 合図・コピー
+
+1. スカイゴルフ — 短い合図 / 長い合図を聞き分けてスイング
+2. ロボねじ工場 — 2拍 / 3拍の長押し→離す
+3. リスのタンバリン — 左右2種類の音をコピー
+4. くるくる会議 — 他の3人の次の拍で停止
+5. リミックス 1
+
+### WORLD 2 — 待ち時間・拍キープ
+
+6. スピード串刺し — 発射から到着までの一定時間を覚える
+7. 雲上ラリー — 普通は次の拍、特殊合図は2拍後
+8. 公園デート — ボール種別ごとに違う到着パターン
+9. ビート時計 — 合図なしで毎拍を維持 + 裏拍ペア
+10. リミックス 2
+
+### WORLD 3 — ボイス・アクション
+
+11. コーラス隊 — 前の2人と同じ長さだけ歌う
+12. カラテ屋台 — 単発パンチ + 半拍コンボ
+13. チャンピオン会見 — 質問ごとに1回 / 2回 / 長押し
+14. 影斬り道場 — 単発斬り + 大群への長押し一閃
+15. ファイナル・リミックス
+
+## 開発
+
 ```bash
 npm install
-npm run typecheck
-npm run build
+npm run validate
 npm run dev
 ```
 
-See `THIRD_PARTY_AND_MUSIC.md` for OSS/music licensing notes.
+開発サーバーは `4173` です。
+
+任意でCC0楽曲を取得できます。
+
+```bash
+npm run fetch:music
+npm run build
+```
+
+## PWA / GitHub Pages
+
+`main` へpushすると `.github/workflows/deploy-pages.yml` が `dist/` をGitHub Pagesへ公開します。
+
+v9ではステージ内容を全面刷新したため、v8以前からは**設定だけを移行し、ステージスコアはリセット**します。
